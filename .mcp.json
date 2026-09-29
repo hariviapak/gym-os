@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "agentworks": {
+      "command": "agentworks",
+      "args": ["mcp", "serve"],
+      "env": {
+        "AGENTWORKS_API_URL": "https://api.thoughtworks.polis.thoughtworks-labs.net",
+        "AGENTWORKS_PROFILE": "default"
+      }
+    }
+  }
+}

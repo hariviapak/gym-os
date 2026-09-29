@@ -1,0 +1,40 @@
+name: Daily Backup
+
+on:
+  schedule:
+    # 2:30 AM IST (21:00 UTC previous day)
+    - cron: "30 21 * * *"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          FILENAME="backup_${TIMESTAMP}.sql.gz"
+          pg_dump "$SUPABASE_DB_URL" | gzip > "$FILENAME"
+          echo "FILENAME=$FILENAME" >> $GITHUB_ENV
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FILENAME }}
+          path: ${{ env.FILENAME }}
+          retention-days: 30
+
+      - name: Trigger daily tasks
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          VERCEL_URL: ${{ secrets.VERCEL_APP_URL }}
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            "https://$VERCEL_URL/api/cron/daily-tasks"

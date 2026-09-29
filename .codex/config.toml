@@ -1,0 +1,13 @@
+# AgentWorks MCP server for Codex CLI.
+#
+# Project-scoped config: place this file at `.codex/config.toml` in your
+# builder project, or merge the [mcp_servers.agentworks] block into your
+# global `~/.codex/config.toml`.
+#
+# The server authenticates with the `agentworks` CLI profile named below
+# (run `agentworks --profile <name> auth login` or `auth set-token` first).
+
+[mcp_servers.agentworks]
+command = "agentworks"
+args = ["mcp", "serve"]
+env = { AGENTWORKS_API_URL = "https://api.thoughtworks.polis.thoughtworks-labs.net", AGENTWORKS_PROFILE = "default" }
