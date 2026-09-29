@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrency, formatDate, todayIST, addDaysIST, monthStartIST } from "@/lib/utils";
+import { formatCurrency, formatCurrencyCompact, formatDate, todayIST, addDaysIST, monthStartIST } from "@/lib/utils";
 import Link from "next/link";
 
 // DASHBOARD = "What needs my attention?" — a calm traffic controller.
@@ -33,6 +33,7 @@ export default async function DashboardPage({
     collectedToday,
     monthRevenue,
     monthExpenses,
+    voidedPayments,
     expiring7,
     dues,
     expiredBucket,
@@ -42,9 +43,13 @@ export default async function DashboardPage({
     lockerKeys,
   ] = await Promise.all([
     supabase.rpc("member_overview_stats", { p_gym_id: gymId }).single(),
-    supabase.from("payments").select("amount").eq("gym_id", gymId).eq("payment_date", todayStr),
-    supabase.from("payments").select("amount").eq("gym_id", gymId).gte("payment_date", monthStartIST()),
+    supabase.from("payments").select("id, amount").eq("gym_id", gymId).eq("payment_date", todayStr),
+    supabase.from("payments").select("id, amount").eq("gym_id", gymId).gte("payment_date", monthStartIST()),
     supabase.from("expenses").select("amount").eq("gym_id", gymId).gte("expense_date", monthStartIST()),
+    // voided receipts are excluded from every revenue figure (same rule as
+    // the payments page + reports). PostgREST can't filter via the embedded
+    // receipts relation, so resolve voided payment ids first.
+    supabase.from("receipts").select("payment_id").eq("gym_id", gymId).not("voided_at", "is", null),
     supabase
       .from("memberships")
       .select("id", { count: "exact", head: true })
@@ -85,8 +90,14 @@ export default async function DashboardPage({
   const stats = statsRes.data as any;
 
   // ---- derived values ----
-  const todayCollection = (collectedToday.data ?? []).reduce((s: number, p: any) => s + Number(p.amount), 0);
-  const revenue = (monthRevenue.data ?? []).reduce((s: number, p: any) => s + Number(p.amount), 0);
+
+  const voidedIds = new Set((voidedPayments.data ?? []).map((r: any) => r.payment_id));
+  const revenue = (monthRevenue.data ?? [])
+    .filter((p: any) => !voidedIds.has(p.id))
+    .reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const collectedTodaySum = (collectedToday.data ?? [])
+    .filter((p: any) => !voidedIds.has(p.id))
+    .reduce((s: number, p: any) => s + Number(p.amount), 0);
   const expenses = (monthExpenses.data ?? []).reduce((s: number, e: any) => s + Number(e.amount), 0);
 
   // outstanding dues, summed per member
@@ -173,7 +184,7 @@ export default async function DashboardPage({
         {canSeeFinances && (
           <div className={`${cardClass} p-4`}>
             <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">Collected today</p>
-            <p className="mt-1 text-xl font-bold text-zinc-900">{formatCurrency(todayCollection)}</p>
+            <p className="mt-1 text-xl font-bold text-zinc-900">{formatCurrency(collectedTodaySum)}</p>
           </div>
         )}
       </div>
@@ -254,19 +265,31 @@ export default async function DashboardPage({
         </div>
       )}
 
-      {/* Monthly summary — quiet row */}
+      {/* Monthly summary — labeled grid, reads well on mobile */}
       {canSeeFinances && (
-        <div className={`${cardClass} flex flex-wrap items-center gap-x-8 gap-y-1 px-5 py-4 text-sm`}>
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">This month</span>
-          <span className="text-zinc-600">
-            Revenue <span className="font-semibold text-zinc-900">{formatCurrency(revenue)}</span>
-          </span>
-          <span className="text-zinc-600">
-            Expenses <span className="font-semibold text-zinc-900">{formatCurrency(expenses)}</span>
-          </span>
-          <span className="text-zinc-600">
-            Net <span className={`font-semibold ${revenue - expenses >= 0 ? "text-green-700" : "text-red-700"}`}>{formatCurrency(revenue - expenses)}</span>
-          </span>
+        <div className={cardClass}>
+          <div className="flex items-center justify-between px-5 pt-4">
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">This month</span>
+            <Link href="/dashboard/reports" className="text-xs font-semibold text-blue-700 transition hover:text-blue-900">
+              Reports →
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-2 px-5 pb-4 pt-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Revenue</p>
+              <p className="truncate text-sm font-bold text-zinc-900 sm:text-base">{formatCurrencyCompact(revenue)}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Expenses</p>
+              <p className="truncate text-sm font-bold text-zinc-900 sm:text-base">{formatCurrencyCompact(expenses)}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Net</p>
+              <p className={`truncate text-sm font-bold sm:text-base ${revenue - expenses >= 0 ? "text-green-700" : "text-red-700"}`}>
+                {formatCurrencyCompact(revenue - expenses)}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

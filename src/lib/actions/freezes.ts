@@ -228,11 +228,18 @@ export async function endFreeze(freezeId: string, memberId: string, _formData: F
 
   const today = todayIST();
 
-  // Recalculate extension: only days actually frozen
-  const actualEnd = freeze.end_date < today ? freeze.end_date : today;
-  const freezeDays = Math.ceil(
-    (new Date(actualEnd).getTime() - new Date(freeze.start_date).getTime()) / (1000 * 60 * 60 * 24)
-  ) + 1;
+  // Approval already extended the membership by the FULL freeze range. On
+  // early end, credit back the unused days by applying the delta (actual −
+  // full): a full-run freeze changes nothing, an early end extends only by
+  // the days actually frozen, and a never-started freeze reverts fully.
+  const daysInclusive = (s: string, e: string) =>
+    Math.ceil((new Date(e).getTime() - new Date(s).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+  const fullDays = daysInclusive(freeze.start_date, freeze.end_date);
+  const ran = today >= freeze.start_date;
+  const actualEnd = ran ? (freeze.end_date < today ? freeze.end_date : today) : freeze.start_date;
+  const actualDays = ran ? daysInclusive(freeze.start_date, actualEnd) : 0;
+  const delta = actualDays - fullDays;
 
   // Update freeze
   await supabase
@@ -240,7 +247,7 @@ export async function endFreeze(freezeId: string, memberId: string, _formData: F
     .update({ status: "ended", end_date: actualEnd })
     .eq("id", freezeId);
 
-  // Extend membership by actual freeze days
+  // Adjust membership end date by the delta (≤ 0 when ended early)
   const { data: membership } = await supabase
     .from("memberships")
     .select("end_date")
@@ -249,7 +256,7 @@ export async function endFreeze(freezeId: string, memberId: string, _formData: F
 
   if (membership) {
     const newEndDate = new Date(membership.end_date);
-    newEndDate.setDate(newEndDate.getDate() + freezeDays);
+    newEndDate.setDate(newEndDate.getDate() + delta);
     await supabase
       .from("memberships")
       .update({ end_date: dateToIST(newEndDate) })
@@ -260,7 +267,7 @@ export async function endFreeze(freezeId: string, memberId: string, _formData: F
     action: "freeze.ended",
     entity_type: "membership_freezes",
     entity_id: freezeId,
-    changes: { member_id: memberId, actual_days: freezeDays },
+    changes: { member_id: memberId, actual_days: actualDays, adjustment_days: delta },
   });
 
   await supabase.from("member_events").insert({
@@ -268,7 +275,7 @@ export async function endFreeze(freezeId: string, memberId: string, _formData: F
     member_id: memberId,
     event_type: "freeze_ended",
     title: "Freeze ended",
-    description: `Actual freeze: ${freeze.start_date} → ${actualEnd} (+${freezeDays}d extension)`,
+    description: `Actual freeze: ${freeze.start_date} → ${actualEnd} (${actualDays}d frozen${delta < 0 ? `, ${-delta}d credited back` : ""})`,
     created_by: user!.id,
   });
 

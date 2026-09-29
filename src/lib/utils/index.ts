@@ -50,6 +50,16 @@ export function formatCurrency(amount: number, symbol = "₹"): string {
   })}`;
 }
 
+// Whole rupees without decimal noise (dashboard summaries); keeps decimals
+// only when the amount genuinely has a fraction.
+export function formatCurrencyCompact(amount: number, symbol = "₹"): string {
+  const whole = Number.isInteger(amount);
+  return `${symbol}${amount.toLocaleString("en-IN", {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  })}`;
+}
+
 export function daysBetween(start: string | Date, end: string | Date): number {
   const s = typeof start === "string" ? new Date(start) : start;
   const e = typeof end === "string" ? new Date(end) : end;

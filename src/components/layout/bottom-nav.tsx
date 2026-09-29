@@ -6,17 +6,20 @@ import { usePathname } from "next/navigation";
 import type { StaffRole } from "@/lib/types/database";
 import { Icon } from "@/components/ui/icons";
 
-const ITEMS = [
+type NavItem = { label: string; href: string; icon: string; roles?: StaffRole[] };
+type MoreItem = { label: string; href: string; roles?: StaffRole[] };
+
+const ITEMS: NavItem[] = [
   { label: "Home", href: "/dashboard", icon: "grid" },
   { label: "Members", href: "/dashboard/members", icon: "users" },
   { label: "Quick Pass", href: "/dashboard/quick-pass", icon: "zap" },
   { label: "Lockers", href: "/dashboard/locker-keys", icon: "key" },
-  { label: "Payments", href: "/dashboard/payments", icon: "rupee", roles: ["owner", "admin", "manager"] as StaffRole[] },
 ];
 
 // Less frequent areas live behind a More button (bottom sheet), keeping the
 // bottom navigation uncluttered.
-const MORE = [
+const MORE: MoreItem[] = [
+  { label: "Payments", href: "/dashboard/payments", roles: ["owner", "admin", "manager"] as StaffRole[] },
   { label: "Reminders", href: "/dashboard/reminders" },
   { label: "Packages", href: "/dashboard/packages" },
   { label: "Tasks", href: "/dashboard/tasks" },
@@ -40,7 +43,6 @@ export function BottomNav({ role, duesCount = 0 }: { role: StaffRole; duesCount?
     <nav className="fixed bottom-0 left-0 right-0 z-30 flex border-t border-zinc-200 bg-white lg:hidden">
       {items.map((item) => {
         const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
-        const showBadge = item.icon === "rupee" && duesCount > 0;
         return (
           <Link
             key={item.href}
@@ -51,11 +53,6 @@ export function BottomNav({ role, duesCount = 0 }: { role: StaffRole; duesCount?
           >
             <div className={`relative ${active ? "scale-110" : ""} transition`}>
               <Icon name={item.icon} className="h-5 w-5" />
-              {showBadge && (
-                <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-zinc-900 px-1 text-[9px] font-bold text-white">
-                  {duesCount > 99 ? "99+" : duesCount}
-                </span>
-              )}
             </div>
             <span className="text-[10px] font-medium">{item.label}</span>
           </Link>
@@ -66,7 +63,14 @@ export function BottomNav({ role, duesCount = 0 }: { role: StaffRole; duesCount?
         onClick={() => setMoreOpen(true)}
         className={`flex flex-1 flex-col items-center gap-0.5 py-2 transition ${moreActive ? "text-zinc-900" : "text-zinc-400"}`}
       >
-        <Icon name="grid" className="h-5 w-5" />
+        <div className="relative">
+          <Icon name="grid" className="h-5 w-5" />
+          {duesCount > 0 && (
+            <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-zinc-900 px-1 text-[9px] font-bold text-white">
+              {duesCount > 99 ? "99+" : duesCount}
+            </span>
+          )}
+        </div>
         <span className="text-[10px] font-medium">More</span>
       </button>
 

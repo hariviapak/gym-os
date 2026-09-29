@@ -110,9 +110,13 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
     check("More drawer opens as bottom sheet", dVisible);
     const labels = await drawer.textContent();
     check("drawer lists less-frequent areas", /Reminders/.test(labels) && /Packages/.test(labels) && /Reports/.test(labels));
+    check("Payments moved into drawer", /Payments/.test(labels));
+
     await page.mouse.click(vp.w / 2, 30);
     await page.waitForTimeout(300);
     check("drawer closes on backdrop", (await page.locator("div.fixed.z-50.rounded-t-2xl").count()) === 0 || !(await drawer.isVisible()));
+    const navHasPayments = await page.locator('nav.fixed a', { hasText: "Payments" }).count();
+    check("bottom nav slimmer (no Payments tab)", navHasPayments === 0);
   }
 
   await browser.close();
