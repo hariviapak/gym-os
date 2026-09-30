@@ -39,7 +39,15 @@ export async function generateSigningToken(
     return { url: "", error: error.message };
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  // Derive the base URL from the request host so links always match the
+  // domain staff is actually using (prod custom domain, preview deploys,
+  // localhost). The env var is only a fallback when headers are unavailable.
+  const h = await headers();
+  const host = h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? (host?.includes("localhost") ? "http" : "https");
+  const baseUrl = host
+    ? `${proto}://${host}`
+    : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   return { url: `${baseUrl}/sign/${token}` };
 }
 

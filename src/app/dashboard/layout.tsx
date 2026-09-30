@@ -60,7 +60,7 @@ export default async function DashboardLayout({
       />
       <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
         <Header userName={userData.name} userRole={userData.role} gymName={userData.gyms?.name ?? "Gym"} gymLogoUrl={userData.gyms?.logo_url ?? null} />
-        <main className="min-w-0 flex-1 p-4 pb-20 lg:p-8 lg:pb-8">{children}</main>
+        <main className="min-w-0 flex-1 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:p-8 lg:pb-8">{children}</main>
       </div>
       <BottomNav role={userData.role} duesCount={pendingDuesCount} />
     </div>

@@ -89,3 +89,14 @@ body {
     margin: 1.5cm;
   }
 }
+
+/* iOS Safari auto-zooms the viewport when focusing an input with computed
+   font-size under 16px (Tailwind text-xs/text-sm). Keep entry fields at 16px
+   on phones — prevents the zoom-in when typing or searching. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
