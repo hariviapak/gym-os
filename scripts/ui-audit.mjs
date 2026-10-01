@@ -16,6 +16,8 @@ const ROUTES = [
   { path: `/dashboard/members/${MEMBER_ID}`, name: "Member profile" },
   { path: `/dashboard/members/${MEMBER_ID}/edit`, name: "Edit member" },
   { path: `/dashboard/members/${MEMBER_ID}/sign-terms`, name: "Sign terms" },
+  { path: `/dashboard/members/${MEMBER_ID}/signed-documents`, name: "Signed documents" },
+  { path: `/print/member-profile/${MEMBER_ID}`, name: "Print profile (screen preview)" },
   { path: "/dashboard/packages", name: "Packages (list)" },
   { path: "/dashboard/packages?view=grid", name: "Packages (grid)" },
   { path: "/dashboard/payments", name: "Payments" },

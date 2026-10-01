@@ -10,6 +10,7 @@ import {
   serviceLabel,
 } from "@/lib/utils";
 import { PrintButton } from "@/components/members/print-button";
+import Link from "next/link";
 
 // Print / PDF-ready member profile — clean A4 layout with no app chrome.
 // Staff open it from the profile's More menu and hit Print (browser "Save as
@@ -84,15 +85,26 @@ export default async function MemberProfilePrintPage({
     <div className="min-h-screen bg-zinc-100 py-6 print:bg-white print:py-0">
       <style>{`@page { size: A4; margin: 10mm }`}</style>
 
-      <div className="mx-auto w-full max-w-[820px] bg-white px-10 py-10 text-zinc-900 shadow-lg print:shadow-none">
+      {/* Screen-only toolbar: way back (mobile PWA has no browser back) + the
+          download button — never printed */}
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 print:hidden">
+        <Link
+          href={`/dashboard/members/${member.id}`}
+          className="text-xs font-medium text-zinc-400 transition hover:text-zinc-900"
+        >
+          ← Back to {fullName(member)}
+        </Link>
+        <PrintButton />
+      </div>
+
+      <div className="mx-auto w-full max-w-[820px] bg-white px-4 py-6 text-zinc-900 shadow-lg sm:px-10 sm:py-10 print:px-10 print:py-10 print:shadow-none">
         {/* header */}
         <div className="flex items-start justify-between border-b-4 border-zinc-900 pb-4">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">{gym?.name ?? "Gym"}</p>
-            <h1 className="mt-1 font-serif text-3xl font-bold tracking-tight">Member Profile</h1>
+            <h1 className="mt-1 font-serif text-2xl font-bold tracking-tight sm:text-3xl">Member Profile</h1>
             <p className="mt-0.5 text-[10px] text-zinc-400">Generated {printTs} · Confidential</p>
           </div>
-          <PrintButton />
         </div>
 
         {/* member hero */}
@@ -127,7 +139,7 @@ export default async function MemberProfilePrintPage({
         </div>
 
         {/* summary strip */}
-        <div className="mt-6 grid grid-cols-4 gap-3">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 print:grid-cols-4">
           <Stat label="Member since" value={formatDate(member.created_at)} />
           <Stat label="Active plans" value={String((live as any[]).length)} />
           <Stat label="Lifetime paid" value={formatCurrency(totalPaid - totalRefunded)} sub={totalRefunded ? `${formatCurrency(totalRefunded)} refunded` : undefined} />
@@ -138,7 +150,7 @@ export default async function MemberProfilePrintPage({
         {(memberships ?? []).length > 0 && (
           <>
             <h3 className={sectionTitle}>Membership history</h3>
-            <table className="w-full border-collapse">
+            <div className="overflow-x-auto print:overflow-visible"><table className="w-full border-collapse">
               <thead>
                 <tr>
                   <th className={th}>Package</th>
@@ -169,7 +181,7 @@ export default async function MemberProfilePrintPage({
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           </>
         )}
 
@@ -177,7 +189,7 @@ export default async function MemberProfilePrintPage({
         {(payments ?? []).length > 0 && (
           <>
             <h3 className={sectionTitle}>Payment history</h3>
-            <table className="w-full border-collapse">
+            <div className="overflow-x-auto print:overflow-visible"><table className="w-full border-collapse">
               <thead>
                 <tr>
                   <th className={th}>Date</th>
@@ -201,7 +213,7 @@ export default async function MemberProfilePrintPage({
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           </>
         )}
 
@@ -209,7 +221,7 @@ export default async function MemberProfilePrintPage({
         {(refunds ?? []).length > 0 && (
           <>
             <h3 className={sectionTitle}>Refunds</h3>
-            <table className="w-full border-collapse">
+            <div className="overflow-x-auto print:overflow-visible"><table className="w-full border-collapse">
               <tbody>
                 {(refunds ?? []).map((r: any) => (
                   <tr key={r.created_at}>
@@ -219,7 +231,7 @@ export default async function MemberProfilePrintPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </>
         )}
 
