@@ -85,7 +85,7 @@ export function TermsCard({ version: v, canEdit }: TermsCardProps) {
       {expanded && editing && (
         <form action={updateTermsVersion.bind(null, v.id)} className="mt-3 space-y-3">
           <div>
-            <label className="block text-xs font-medium text-zinc-500">Title</label>
+            <label className="block text-xs font-medium text-zinc-600">Title</label>
             <input
               name="title"
               defaultValue={v.title}
@@ -93,7 +93,7 @@ export function TermsCard({ version: v, canEdit }: TermsCardProps) {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-500">Body</label>
+            <label className="block text-xs font-medium text-zinc-600">Body</label>
             <textarea
               name="body"
               defaultValue={v.body}

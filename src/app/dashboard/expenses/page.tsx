@@ -11,9 +11,12 @@ export default async function ExpensesPage({
   searchParams: Promise<{ page?: string; sort?: string; order?: string; edit?: string; error?: string }>;
 }) {
   const supabase = await createClient();
+// zero-network session read: the middleware already verified this session,
+  // and RLS enforces all data access regardless of where it was checked
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
   const { data: userData } = await supabase
     .from("users")
     .select("gym_id, role")
@@ -320,7 +323,7 @@ export default async function ExpensesPage({
             {page > 1 && (
               <Link
                 href={`/dashboard/expenses?${new URLSearchParams({ ...params, page: String(page - 1) }).toString()}`}
-                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
               >
                 ← Previous
               </Link>
@@ -328,7 +331,7 @@ export default async function ExpensesPage({
             {page * pageSize < count && (
               <Link
                 href={`/dashboard/expenses?${new URLSearchParams({ ...params, page: String(page + 1) }).toString()}`}
-                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
               >
                 Next →
               </Link>

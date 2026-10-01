@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { SignaturePad } from "@/components/members/signature-pad";
 import { submitSignatureFromToken } from "@/lib/actions/signing";
+import Link from "next/link";
 
 interface SignFormProps {
   token: string;
@@ -59,6 +60,15 @@ export function SignForm({ token, memberName, termsTitle, termsVersion, gymName 
         <p className="mt-1 text-sm text-zinc-500">
           Thank you, {memberName}. Your digital signature for <strong>{termsTitle}</strong> has been recorded.
         </p>
+        <p className="mt-1 text-sm text-zinc-500">
+          The gym has saved a copy of the signed document.
+        </p>
+        <Link
+          href={`/sign/${token}/copy`}
+          className="mt-4 inline-block rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+        >
+          Download Signed Copy (PDF) →
+        </Link>
         <p className="mt-3 text-xs text-zinc-400">
           You can close this page now.
         </p>
@@ -67,13 +77,13 @@ export function SignForm({ token, memberName, termsTitle, termsVersion, gymName 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto max-w-md space-y-5">
+    <form onSubmit={handleSubmit} className="mx-auto max-w-md space-y-5 print:hidden">
       {error && (
         <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       <div className="rounded-xl bg-white p-5 ring-1 ring-zinc-200/60">
-        <label className="block text-sm font-medium text-zinc-700">
+        <label className="block text-xs font-medium text-zinc-600">
           Full Name
         </label>
         <input
@@ -86,7 +96,7 @@ export function SignForm({ token, memberName, termsTitle, termsVersion, gymName 
       </div>
 
       <div className="rounded-xl bg-white p-5 ring-1 ring-zinc-200/60">
-        <label className="block text-sm font-medium text-zinc-700">
+        <label className="block text-xs font-medium text-zinc-600">
           Signature
         </label>
         <p className="mb-2 text-xs text-zinc-400">Draw your signature below</p>

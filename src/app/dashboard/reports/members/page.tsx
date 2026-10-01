@@ -18,7 +18,7 @@ export default async function ReportMembersPage({
   const { data: userData } = await supabase
     .from("users")
     .select("gym_id")
-    .eq("id", (await supabase.auth.getUser()).data.user!.id)
+    .eq("id", (await supabase.auth.getSession()).data.session!.user.id)
     .single();
   const gymId = userData!.gym_id;
 

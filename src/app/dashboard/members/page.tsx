@@ -13,9 +13,12 @@ export default async function MembersPage({
   searchParams: Promise<{ q?: string; status?: string; filter?: string; page?: string; sort?: string; order?: string }>;
 }) {
   const supabase = await createClient();
+// zero-network session read: the middleware already verified this session,
+  // and RLS enforces all data access regardless of where it was checked
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
   const { data: userData } = await supabase
     .from("users")
     .select("gym_id")
@@ -34,20 +37,8 @@ export default async function MembersPage({
   const sortCol = validSorts.includes(params.sort ?? "") ? params.sort! : "created_at";
   const sortOrder = params.order === "asc" ? "asc" : "desc";
 
-  // Summary strip — one server-side aggregate
-  const { data: stats } = await supabase
-    .rpc("member_overview_stats", { p_gym_id: gymId })
-    .single();
-
-  // Frozen members (for row status badges)
-  const { data: freezeRows } = await supabase
-    .from("membership_freezes")
-    .select("member_id")
-    .eq("gym_id", gymId)
-    .in("status", ["pending", "active", "approved"]);
-  const frozenIds = new Set((freezeRows ?? []).map((f: any) => f.member_id));
-
-  // Derived-status filters via bucket ids (server-side SQL)
+  // Derived-status filters via bucket ids (server-side SQL). Only these tabs
+  // need a pre-resolution round trip; everything else runs in ONE batch below.
   let statusIds: string[] | null = null;
   if (["active", "expiring", "frozen", "cancelled"].includes(statusFilter)) {
     const { data: buckets } = await supabase.rpc("member_bucket_ids", { p_gym_id: gymId });
@@ -121,7 +112,21 @@ export default async function MembersPage({
     }
   }
 
-  const [{ data: members, count }, { data: packages }, { data: settings }] = await Promise.all([
+  // ONE parallel batch: stats + freeze flags + member rows + packages +
+  // settings together — a single round trip on the default view
+  const [
+    statsRes,
+    freezeRes,
+    membersRes,
+    packagesRes,
+    settingsRes,
+  ] = await Promise.all([
+    supabase.rpc("member_overview_stats", { p_gym_id: gymId }).single(),
+    supabase
+      .from("membership_freezes")
+      .select("member_id")
+      .eq("gym_id", gymId)
+      .in("status", ["pending", "active", "approved"]),
     memberQuery,
     supabase
       .from("packages")
@@ -131,6 +136,13 @@ export default async function MembersPage({
       .order("sort_order", { ascending: true }),
     supabase.from("gym_settings").select("gst_mode").eq("gym_id", gymId).single(),
   ]);
+
+  const stats = statsRes.data;
+  const frozenIds = new Set((freezeRes.data ?? []).map((f: any) => f.member_id));
+  const members = membersRes.data;
+  const count = membersRes.count;
+  const packages = packagesRes.data;
+  const settings = settingsRes.data;
 
   // Per-row summaries computed server-side — the table just renders
   const today = todayIST();

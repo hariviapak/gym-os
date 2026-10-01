@@ -97,6 +97,10 @@ const browser = await chromium.launch();
   await mpage.getByText("Signature Recorded!").waitFor({ timeout: 20000 });
   check("signature submitted successfully", true);
 
+  // member-side download affordances
+  check("pre-sign: Download Terms (PDF) button present",
+    (await mpage.getByRole("button", { name: "Download Terms (PDF)" }).count()) === 1);
+
   // ---- DB truth ----
   const { data: acc } = await db.from("terms_acceptances").select("id, accepted_by_method, signed_name").eq("member_id", member.id).maybeSingle();
   check("acceptance recorded (magic_link)", acc?.accepted_by_method === "magic_link", JSON.stringify(acc?.accepted_by_method));
@@ -104,6 +108,40 @@ const browser = await chromium.launch();
   check("member event written", (evs ?? []).some((e) => e.event_type === "terms_accepted"));
   const { data: tok } = await db.from("signing_tokens").select("used_at").eq("token", token).maybeSingle();
   check("token marked used", !!tok?.used_at);
+
+  // ---- member signed-copy route ----
+  const copyLink = mpage.getByRole("link", { name: "Download Signed Copy (PDF)" });
+  check("success screen links the signed copy", (await copyLink.count()) === 1);
+  await copyLink.click();
+  await mpage.waitForURL(/\/sign\/.+\/copy/, { timeout: 20000 });
+  await mpage.waitForLoadState("networkidle");
+  const copyTxt = await mpage.evaluate(() => document.body.innerText);
+  check("signed copy shows the document", /Gym Terms & Conditions/.test(copyTxt) && /member signature/i.test(copyTxt));
+  check("signed copy shows the signature image", (await mpage.locator('img[alt="Signature"]').count()) === 1);
+  check("signed copy has Download PDF button", (await mpage.getByRole("button", { name: "Download PDF" }).count()) === 1);
+
+  // ---- staff side: signed-documents page ----
+  const spage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await spage.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  await spage.fill('input[name="email"]', EMAIL);
+  await spage.fill('input[name="password"]', PASSWORD);
+  await Promise.all([spage.waitForNavigation(), spage.click("form button")]);
+  await spage.goto(`${BASE}/dashboard/members/${member.id}/signed-documents`, { waitUntil: "networkidle" });
+  const sTxt = await spage.evaluate(() => document.body.innerText);
+  check("staff signed-documents renders", /Gym Terms & Conditions/.test(sTxt) && /member signature/i.test(sTxt));
+  check("staff page has Download PDF button", (await spage.getByRole("button", { name: "Download PDF" }).count()) === 1);
+  await spage.close();
+
+  // member profile now links the page
+  const ppage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await ppage.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  await ppage.fill('input[name="email"]', EMAIL);
+  await ppage.fill('input[name="password"]', PASSWORD);
+  await Promise.all([ppage.waitForNavigation(), ppage.click("form button")]);
+  await ppage.goto(`${BASE}/dashboard/members/${member.id}`, { waitUntil: "networkidle" });
+  check("profile links View signed documents",
+    (await ppage.getByRole("link", { name: "View signed documents →" }).count()) === 1);
+  await ppage.close();
 
   // ---- reuse guard ----
   await mpage.goto(`${BASE}/sign/${token}`, { waitUntil: "networkidle" });

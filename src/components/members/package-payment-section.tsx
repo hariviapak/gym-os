@@ -324,7 +324,7 @@ export function PackagePaymentSection({
             <button
               type="button"
               onClick={() => setAddMode("existing")}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
                 addMode === "existing" ? "bg-violet-600 text-white" : "text-zinc-600 hover:bg-zinc-100"
               }`}
             >
@@ -333,7 +333,7 @@ export function PackagePaymentSection({
             <button
               type="button"
               onClick={() => setAddMode("new")}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
                 addMode === "new" ? "bg-violet-600 text-white" : "text-zinc-600 hover:bg-zinc-100"
               }`}
             >

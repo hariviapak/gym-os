@@ -355,7 +355,7 @@ export default function ImportWizard() {
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={() => setStep("upload")}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+              className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
             >
               Back
             </button>
@@ -438,7 +438,7 @@ export default function ImportWizard() {
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={() => setStep("map")}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+              className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
             >
               Back
             </button>
@@ -510,7 +510,7 @@ export default function ImportWizard() {
                   setProgress({ processed: 0, created: 0, updated: 0, skipped: 0, errors: 0 });
                   setBatchId(null);
                 }}
-                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
               >
                 Import Another
               </button>

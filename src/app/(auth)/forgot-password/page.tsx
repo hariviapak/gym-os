@@ -31,7 +31,7 @@ export default async function ForgotPasswordPage({
       <form className="space-y-4">
         {params.gym && <input type="hidden" name="gym_code" value={params.gym} />}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
+          <label htmlFor="email" className="block text-xs font-medium text-zinc-600">
             Email
           </label>
           <input

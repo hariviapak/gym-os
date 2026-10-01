@@ -81,7 +81,7 @@ export default function ResetPasswordPage() {
       {!error && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
+            <label htmlFor="password" className="block text-xs font-medium text-zinc-600">
               New Password
             </label>
             <input
@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
             />
           </div>
           <div>
-            <label htmlFor="confirm" className="block text-sm font-medium text-zinc-700">
+            <label htmlFor="confirm" className="block text-xs font-medium text-zinc-600">
               Confirm Password
             </label>
             <input

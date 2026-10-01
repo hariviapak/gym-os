@@ -41,7 +41,7 @@ export function TaskForm({ staff }: { staff: StaffMember[] }) {
       />
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-zinc-500">Type</label>
+          <label className="block text-xs font-medium text-zinc-600">Type</label>
           <select
             name="type"
             className="mt-0.5 block w-full rounded-lg border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
@@ -54,7 +54,7 @@ export function TaskForm({ staff }: { staff: StaffMember[] }) {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-500">Priority</label>
+          <label className="block text-xs font-medium text-zinc-600">Priority</label>
           <select
             name="priority"
             className="mt-0.5 block w-full rounded-lg border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
@@ -68,7 +68,7 @@ export function TaskForm({ staff }: { staff: StaffMember[] }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-zinc-500">Assign to</label>
+          <label className="block text-xs font-medium text-zinc-600">Assign to</label>
           <select
             name="assigned_to"
             className="mt-0.5 block w-full rounded-lg border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
@@ -80,7 +80,7 @@ export function TaskForm({ staff }: { staff: StaffMember[] }) {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-500">Due date</label>
+          <label className="block text-xs font-medium text-zinc-600">Due date</label>
           <input
             name="due_date"
             type="date"

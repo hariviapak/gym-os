@@ -114,9 +114,11 @@ if (await pkgSelect.count()) {
   const firstOption = await pkgSelect.locator("option").nth(1).getAttribute("value");
   if (firstOption) {
     await pkgSelect.selectOption(firstOption);
-    await page.waitForTimeout(2000);
+    await page.waitForURL(/package=/, { timeout: 15000 });
+    await page.waitForTimeout(500);
     t = await page.locator("main").textContent();
-    check("package filter works", /Showing/.test(t), (t.match(/Showing [^o]*of \d+/) || [""])[0]);
+    const rowsAfter = await page.locator("tbody tr").count();
+    check("package filter works", page.url().includes("package=") && (rowsAfter > 0 || /no memberships|no results|no match/i.test(t)), `${rowsAfter} rows`);
   }
 }
 

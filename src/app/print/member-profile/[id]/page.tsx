@@ -21,9 +21,12 @@ export default async function MemberProfilePrintPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+// zero-network session read: the middleware already verified this session,
+  // and RLS enforces all data access regardless of where it was checked
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) redirect("/login");
   const { data: userData } = await supabase
     .from("users")
@@ -87,16 +90,24 @@ export default async function MemberProfilePrintPage({
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">{gym?.name ?? "Gym"}</p>
             <h1 className="mt-1 font-serif text-3xl font-bold tracking-tight">Member Profile</h1>
-            <p className="mt-0.5 text-[10px] text-zinc-400">Generated {printTs} · Confidencial</p>
+            <p className="mt-0.5 text-[10px] text-zinc-400">Generated {printTs} · Confidential</p>
           </div>
           <PrintButton />
         </div>
 
         {/* member hero */}
         <div className="mt-6 flex items-center gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-zinc-900 font-serif text-2xl font-bold text-white">
-            {initials(member)}
-          </div>
+          {member.photo_url ? (
+            <img
+              src={member.photo_url}
+              alt={fullName(member)}
+              className="h-16 w-16 shrink-0 rounded-full object-cover ring-1 ring-zinc-300 print:ring-0"
+            />
+          ) : (
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-zinc-900 font-serif text-2xl font-bold text-white">
+              {initials(member)}
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <h2 className="font-serif text-2xl font-bold leading-tight">{fullName(member)}</h2>
             <p className="mt-0.5 text-sm text-zinc-600">

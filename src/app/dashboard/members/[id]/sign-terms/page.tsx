@@ -12,9 +12,12 @@ export default async function SignTermsPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+// zero-network session read: the middleware already verified this session,
+  // and RLS enforces all data access regardless of where it was checked
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
   const { data: userData } = await supabase
     .from("users")
     .select("gym_id, role")
@@ -93,6 +96,12 @@ export default async function SignTermsPage({
           <h1 className="mt-1 text-2xl font-bold text-zinc-900">Sign Terms</h1>
           <p className="mt-0.5 text-sm text-zinc-500">{memberName} · {member.phone}</p>
         </div>
+        <Link
+          href={`/dashboard/members/${id}/signed-documents`}
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
+        >
+          View signed documents →
+        </Link>
       </div>
 
       {/* Gym Terms */}

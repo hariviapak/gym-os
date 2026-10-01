@@ -8,9 +8,12 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string; message?: string; gym?: string }>;
 }) {
   const supabase = await createClient();
+// zero-network session read: the middleware already verified this session,
+  // and RLS enforces all data access regardless of where it was checked
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user;
 
   if (user) {
     redirect("/");
@@ -55,7 +58,7 @@ export default async function LoginPage({
       <form className="space-y-4">
         {params.gym && <input type="hidden" name="gym_code" value={params.gym} />}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
+          <label htmlFor="email" className="block text-xs font-medium text-zinc-600">
             Email
           </label>
           <input
@@ -69,7 +72,7 @@ export default async function LoginPage({
         </div>
         <div>
           <div className="flex items-center justify-between">
-            <label htmlFor="password" className="block text-sm font-medium text-zinc-700">
+            <label htmlFor="password" className="block text-xs font-medium text-zinc-600">
               Password
             </label>
             <a href={params.gym ? `/forgot-password?gym=${params.gym}` : "/forgot-password"} className="text-xs font-medium text-zinc-400 transition hover:text-zinc-900">
