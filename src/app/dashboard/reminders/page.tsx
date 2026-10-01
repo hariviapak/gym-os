@@ -3,6 +3,8 @@ import { formatCurrency, formatDate, daysUntil, todayIST, addDaysIST, timeAgo } 
 import Link from "next/link";
 import { WhatsAppButton } from "@/components/members/whatsapp-button";
 import { markGiftKitDelivered } from "@/lib/actions/gift-kit";
+import { sendTermsLink } from "@/lib/actions/signing";
+import { fetchPendingTerms } from "@/lib/terms-pending";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { MobilePageHeader } from "@/components/ui/mobile-page-header";
 
@@ -76,6 +78,7 @@ export default async function RemindersPage() {
   const expiringList = expiringSoon.data ?? [];
   const duesList = pendingDues.data ?? [];
   const giftKitList = giftKits.data ?? [];
+  const pendingTerms = await fetchPendingTerms(supabase, gymId);
   const currentMonth = new Date().getMonth();
   const birthdayList = (birthdayMembers.data ?? [])
     .filter((m: any) => new Date(m.date_of_birth).getMonth() === currentMonth)
@@ -330,6 +333,47 @@ export default async function RemindersPage() {
               </div>
             );
           })}
+        </Section>
+      )}
+
+      {/* Terms Pending Signature */}
+      {pendingTerms.length > 0 && (
+        <Section title="Terms Pending Signature" count={pendingTerms.length} dot="bg-violet-400" anchor="terms">
+          {pendingTerms.map((t) => (
+            <div key={`${t.memberId}-${t.termsVersionId}`} className="flex items-center justify-between px-5 py-3">
+              <div className="min-w-0 flex-1">
+                <Link href={`/dashboard/members/${t.memberId}`} className="text-sm font-medium text-zinc-700 hover:text-zinc-900">
+                  {t.firstName} {t.lastName}
+                </Link>
+                {t.phone && <span className="ml-2 text-xs text-zinc-400">{t.phone}</span>}
+                <span
+                  className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    t.category === "swimming" ? "bg-blue-50 text-blue-700" : "bg-violet-50 text-violet-700"
+                  }`}
+                >
+                  {t.category === "swimming" ? "Swimming Rules" : "Gym T&C"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <form action={sendTermsLink}>
+                  <input type="hidden" name="member_id" value={t.memberId} />
+                  <input type="hidden" name="terms_version_id" value={t.termsVersionId} />
+                  <SubmitButton
+                    className="rounded-lg bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 transition hover:bg-green-100"
+                    label="Opening…"
+                  >
+                    Send link
+                  </SubmitButton>
+                </form>
+                <Link
+                  href={`/dashboard/members/${t.memberId}/sign-terms`}
+                  className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-200"
+                >
+                  Sign →
+                </Link>
+              </div>
+            </div>
+          ))}
         </Section>
       )}
     </div>

@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { logAudit } from "@/lib/actions/audit";
 import crypto from "crypto";
+import { normalizePhone } from "@/lib/utils";
 
 export async function generateSigningToken(
   memberId: string,
@@ -201,4 +202,29 @@ export async function getSigningTokenInfo(token: string) {
     .single();
 
   return tokenRow;
+}
+
+// One-tap "send signing link via WhatsApp" used by the Reminders pending-terms
+// section: generates a fresh magic link and redirects to wa.me with the same
+// message as the member profile's sign-terms flow.
+export async function sendTermsLink(formData: FormData) {
+  const memberId = formData.get("member_id") as string;
+  const termsVersionId = formData.get("terms_version_id") as string;
+
+  const result = await generateSigningToken(memberId, termsVersionId);
+  if (!result.url || result.error) {
+    redirect(`/dashboard/members/${memberId}/sign-terms`);
+  }
+
+  const supabase = await createClient();
+  const [memberRes, termsRes] = await Promise.all([
+    supabase.from("members").select("first_name, last_name, phone").eq("id", memberId).single(),
+    supabase.from("terms_versions").select("title").eq("id", termsVersionId).single(),
+  ]);
+  const memberName = `${memberRes.data?.first_name ?? ""} ${memberRes.data?.last_name ?? ""}`.trim();
+  const phone = memberRes.data?.phone ?? "";
+  const termsTitle = termsRes.data?.title ?? "Terms";
+
+  const msg = `Hello ${memberName}, please review and sign our ${termsTitle}: ${result.url}`;
+  redirect(`https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(msg)}`);
 }

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatCurrencyCompact, formatDate, todayIST, addDaysIST, monthStartIST } from "@/lib/utils";
+import { fetchPendingTerms } from "@/lib/terms-pending";
 import Link from "next/link";
 
 // DASHBOARD = "What needs my attention?" — a calm traffic controller.
@@ -137,6 +138,9 @@ export default async function DashboardPage({
     categories.push({ label: "Overdue tasks", count: overdueTaskCount, href: "/dashboard/tasks" });
   if (giftKitCount > 0)
     categories.push({ label: "Gift kits pending", count: giftKitCount, href: "/dashboard/reminders#gift-kits" });
+  const pendingTermsCount = (await fetchPendingTerms(supabase, gymId)).length;
+  if (pendingTermsCount > 0)
+    categories.push({ label: "Terms pending signature", count: pendingTermsCount, href: "/dashboard/reminders#terms" });
   if (flaggedKeys > 0)
     categories.push({ label: "Locker keys need attention", count: flaggedKeys, href: "/dashboard/locker-keys?status=flagged" });
 
