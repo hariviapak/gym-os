@@ -29,6 +29,7 @@ const check = (name, ok, detail = "") => {
 const TEST_USERS = [
   { email: `roletest.manager@792fitness.com`, name: "Role Test Manager", role: "manager" },
   { email: `roletest.staff@792fitness.com`, name: "Role Test Staff", role: "staff" },
+  { email: `roletest.trainer@792fitness.com`, name: "Role Test Trainer", role: "trainer" },
 ];
 
 // ---- setup: throwaway accounts (auth admin API; trigger creates the profile row) ----
@@ -143,7 +144,7 @@ console.log("\n--- staff role ---");
     ["/dashboard/members", "Members"],
     ["/dashboard/members/new", "Enrollment"],
     ["/dashboard/quick-pass", "Quick Pass"],
-    ["/dashboard/locker-keys", "Locker Keys"],
+    ["/dashboard/locker-keys", "Add Key"],
     ["/dashboard/reminders", "Reminders"],
     ["/dashboard/packages", "Packages"],
   ]) {
@@ -181,6 +182,49 @@ console.log("\n--- staff role ---");
   await mpage.close();
 
   await page.close();
+}
+
+// ================= FRONT-LINE LOCKER CYCLE =================
+console.log("\n--- front-line locker cycle (staff + trainer) ---");
+{
+  // test key via the admin anon client (same pattern as the lockers suites)
+  const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  await anon.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
+  await anon.from("locker_keys").delete().eq("gym_id", GYM_ID).eq("key_number", "TEST-ROLES-1");
+  const { data: someMember } = await anon.from("members").select("id, first_name").eq("gym_id", GYM_ID).eq("status", "active").limit(1).maybeSingle();
+  await anon.from("locker_keys").insert({
+    gym_id: GYM_ID,
+    key_number: "TEST-ROLES-1",
+    locker_number: "901",
+    status: "available",
+  });
+
+  const staffPage = await loginAs(TEST_USERS[1].email);
+  staffPage.on("dialog", (d) => d.accept());
+  await staffPage.goto(`${BASE}/dashboard/locker-keys`, { waitUntil: "networkidle" });
+  const card = staffPage.locator("div.ring-1", { hasText: "TEST-ROLES-1" }).first();
+  await card.getByRole("button", { name: "Issue", exact: true }).click();
+  await staffPage.locator('input[placeholder*="Search member"]').fill(someMember.first_name);
+  await staffPage.waitForTimeout(300);
+  await staffPage.locator("button", { hasText: someMember.first_name }).first().click();
+  await staffPage.getByRole("button", { name: "Confirm", exact: true }).click();
+  await card.locator("button", { hasText: "Return" }).waitFor({ timeout: 20000 });
+  check("staff can ISSUE a locker key (no 'Not allowed')", true);
+  await staffPage.close();
+
+  const trainerPage = await loginAs(TEST_USERS[2].email);
+  trainerPage.on("dialog", (d) => d.accept());
+  await trainerPage.goto(`${BASE}/dashboard/locker-keys`, { waitUntil: "networkidle" });
+  const card2 = trainerPage.locator("div.ring-1", { hasText: "TEST-ROLES-1" }).first();
+  await card2.locator("button", { hasText: "Return" }).first().click();
+  await card2.getByRole("button", { name: "Issue", exact: true }).waitFor({ timeout: 20000 });
+  check("trainer can RETURN a locker key", true);
+  const { data: keyAfter } = await anon.from("locker_keys").select("status, current_member_id").eq("key_number", "TEST-ROLES-1").single();
+  check("DB truth: key available + member cleared", keyAfter?.status === "available" && !keyAfter?.current_member_id);
+  await trainerPage.close();
+
+  // cleanup the test key
+  await anon.from("locker_keys").delete().eq("gym_id", GYM_ID).eq("key_number", "TEST-ROLES-1");
 }
 
 await browser.close();

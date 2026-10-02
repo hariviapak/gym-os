@@ -20,7 +20,8 @@ export default async function LockerKeysPage({
     .eq("id", user!.id)
     .single();
 
-  if (!userData || !["owner", "admin", "manager"].includes(userData.role)) {
+  // front-line roles manage lockers: staff + trainer alongside manager+
+  if (!userData || !["owner", "admin", "manager", "staff", "trainer"].includes(userData.role)) {
     return <div className="text-sm text-zinc-500">Not allowed.</div>;
   }
 

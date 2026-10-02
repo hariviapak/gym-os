@@ -18,7 +18,8 @@ async function requireStaff() {
     .select("gym_id, id, role")
     .eq("id", user!.id)
     .single();
-  if (!userData || !["owner", "admin", "manager"].includes(userData.role)) {
+  // front-line roles manage lockers: staff + trainer alongside manager+
+  if (!userData || !["owner", "admin", "manager", "staff", "trainer"].includes(userData.role)) {
     redirect("/dashboard?error=" + encodeURIComponent("Not allowed to manage locker keys"));
   }
   return { supabase, gymId: userData.gym_id, userId: userData.id };

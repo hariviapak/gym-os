@@ -138,7 +138,7 @@ create table if not exists public.member_groups (
   id          uuid primary key default uuid_generate_v4(),
   gym_id      uuid not null references public.gyms(id) on delete cascade,
   name        text not null,
-  created_by  uuid references public.users(id),
+  created_by  uuid references public.users(id) on delete set null,
   created_at  timestamptz default now(),
   unique (gym_id, name)
 );
@@ -230,7 +230,7 @@ create table if not exists public.memberships (
   amount_paid       numeric(10,2) default 0,
   prorated_credit   numeric(10,2) default 0,
   upgraded_from_id  uuid references public.memberships(id),
-  created_by        uuid references public.users(id),
+  created_by        uuid references public.users(id) on delete set null,
   created_at        timestamptz default now(),
   updated_at        timestamptz default now(),
   constraint chk_dates check (end_date >= start_date),
@@ -255,7 +255,7 @@ create table if not exists public.member_events (
   title         text not null,
   description   text,
   metadata      jsonb default '{}',
-  created_by    uuid references public.users(id),
+  created_by    uuid references public.users(id) on delete set null,
   created_at    timestamptz default now()
 );
 
@@ -333,8 +333,8 @@ create table if not exists public.membership_freezes (
   status          freeze_status not null default 'pending',
   is_backdated    boolean default false,
   backdated_days  integer default 0,
-  requested_by    uuid references public.users(id),
-  approved_by     uuid references public.users(id),
+  requested_by    uuid references public.users(id) on delete set null,
+  approved_by     uuid references public.users(id) on delete set null,
   approved_at     timestamptz,
   rejected_reason text,
   created_at      timestamptz default now(),
@@ -367,7 +367,7 @@ create table if not exists public.payments (
   gateway_payment_id text,
   gateway_status   text,
   payment_group_id uuid,
-  created_by       uuid references public.users(id),
+  created_by       uuid references public.users(id) on delete set null,
   created_at       timestamptz default now()
 );
 
@@ -399,11 +399,11 @@ create table if not exists public.receipts (
   discount_amount numeric(10,2) default 0 check (discount_amount >= 0),
   discount_reason text,
   voided_at     timestamptz,
-  voided_by     uuid references public.users(id),
+  voided_by     uuid references public.users(id) on delete set null,
   void_reason   text,
   payment_group_id uuid,
   billed_to     text,
-  created_by    uuid references public.users(id),
+  created_by    uuid references public.users(id) on delete set null,
   created_at    timestamptz default now(),
   unique (gym_id, receipt_no)
 );
@@ -620,7 +620,7 @@ create table if not exists public.import_batches (
   errors          jsonb default '[]',
   status          import_status not null default 'running',
   column_mapping  jsonb default '{}',
-  created_by      uuid references public.users(id),
+  created_by      uuid references public.users(id) on delete set null,
   created_at      timestamptz default now(),
   completed_at    timestamptz
 );
@@ -639,7 +639,7 @@ create table if not exists public.terms_versions (
   status      terms_status not null default 'draft',
   category    text not null default 'gym' check (category in ('gym', 'swimming')),
   effective_from timestamptz,
-  created_by  uuid references public.users(id),
+  created_by  uuid references public.users(id) on delete set null,
   created_at  timestamptz default now(),
   updated_at  timestamptz default now(),
   unique (gym_id, version, category)
@@ -665,7 +665,7 @@ create table if not exists public.terms_acceptances (
   signed_ip           text,
   signed_user_agent   text,
   signed_at           timestamptz,
-  created_by          uuid references public.users(id)
+  created_by          uuid references public.users(id) on delete set null
 );
 
 create index idx_terms_acceptances_gym_id on public.terms_acceptances(gym_id);
@@ -679,15 +679,15 @@ create table if not exists public.gift_kit_tasks (
   gym_id          uuid not null references public.gyms(id) on delete cascade,
   member_id       uuid not null references public.members(id) on delete cascade,
   status          gift_kit_status not null default 'pending',
-  assigned_to     uuid references public.users(id),
+  assigned_to     uuid references public.users(id) on delete set null,
   assigned_at     timestamptz,
   delivered_at    timestamptz,
   digital_sent_at timestamptz,
-  digital_sent_by uuid references public.users(id),
+  digital_sent_by uuid references public.users(id) on delete set null,
   digital_content_url text,
   delivered_by_method text,
   notes           text,
-  created_by      uuid references public.users(id),
+  created_by      uuid references public.users(id) on delete set null,
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
 );
@@ -709,7 +709,7 @@ create table if not exists public.signing_tokens (
   token            text unique not null,
   expires_at       timestamptz not null,
   used_at          timestamptz,
-  created_by       uuid references public.users(id),
+  created_by       uuid references public.users(id) on delete set null,
   created_at       timestamptz default now()
 );
 
@@ -727,7 +727,7 @@ create table if not exists public.refunds (
   payment_id    uuid references public.payments(id) on delete set null,
   amount        numeric(10,2) not null check (amount > 0),
   reason        text,
-  created_by    uuid references public.users(id),
+  created_by    uuid references public.users(id) on delete set null,
   created_at    timestamptz default now()
 );
 
@@ -748,7 +748,7 @@ create policy "refunds_insert_manage" on public.refunds
 create table if not exists public.audit_logs (
   id          uuid primary key default uuid_generate_v4(),
   gym_id      uuid not null references public.gyms(id) on delete cascade,
-  user_id     uuid references public.users(id),
+  user_id     uuid references public.users(id) on delete set null,
   action      text not null,
   entity_type text not null,
   entity_id   uuid,
@@ -809,9 +809,9 @@ create table if not exists public.locker_key_logs (
   member_id   uuid not null references public.members(id) on delete cascade,
   key_number  text,
   issued_at   timestamptz default now(),
-  issued_by   uuid references public.users(id),
+  issued_by   uuid references public.users(id) on delete set null,
   returned_at timestamptz,
-  returned_by uuid references public.users(id),
+  returned_by uuid references public.users(id) on delete set null,
   notes       text
 );
 
@@ -829,7 +829,7 @@ create table if not exists public.message_templates (
   type        text not null,
   content     text not null,
   is_active   boolean default true,
-  created_by  uuid references public.users(id),
+  created_by  uuid references public.users(id) on delete set null,
   created_at  timestamptz default now()
 );
 
@@ -846,13 +846,13 @@ create table if not exists public.gym_tasks (
   description  text,
   type         text not null default 'custom',
   priority     text not null default 'medium',
-  assigned_to  uuid references public.users(id),
+  assigned_to  uuid references public.users(id) on delete set null,
   status       text not null default 'pending',
   due_date     date,
-  created_by   uuid references public.users(id),
+  created_by   uuid references public.users(id) on delete set null,
   created_at   timestamptz default now(),
   completed_at timestamptz,
-  completed_by uuid references public.users(id),
+  completed_by uuid references public.users(id) on delete set null,
   notes        text
 );
 
@@ -948,7 +948,7 @@ create table if not exists public.device_commands (
   retry_count     integer default 0,
   sent_at         timestamptz,
   completed_at    timestamptz,
-  created_by      uuid references public.users(id),
+  created_by      uuid references public.users(id) on delete set null,
   created_at      timestamptz default now()
 );
 
@@ -983,7 +983,7 @@ create table if not exists public.member_addons (
   description   text,
   amount        numeric(10,2) not null check (amount >= 0),
   payment_id    uuid references public.payments(id),
-  created_by    uuid references public.users(id),
+  created_by    uuid references public.users(id) on delete set null,
   created_at    timestamptz default now()
 );
 
