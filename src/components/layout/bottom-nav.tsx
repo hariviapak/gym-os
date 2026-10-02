@@ -29,7 +29,7 @@ const MORE: MoreItem[] = [
   { label: "Users", href: "/dashboard/users", roles: ["owner", "admin"] as StaffRole[] },
   { label: "Settings", href: "/dashboard/settings", roles: ["owner", "admin"] as StaffRole[] },
   { label: "Terms & Conditions", href: "/dashboard/terms" },
-  { label: "Audit Log", href: "/dashboard/audit", roles: ["owner", "admin"] as StaffRole[] },
+  { label: "Audit Log", href: "/dashboard/audit", roles: ["owner", "admin", "manager"] as StaffRole[] },
 ];
 
 export function BottomNav({ role, duesCount = 0 }: { role: StaffRole; duesCount?: number }) {
