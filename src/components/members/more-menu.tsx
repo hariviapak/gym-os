@@ -20,6 +20,7 @@ export function MoreMenu({
   return (
     <div className="inline-block text-left">
       <PopoverMenu
+        key={memberStatus}
         panelClassName="w-52"
         trigger={({ toggle }) => (
           <button

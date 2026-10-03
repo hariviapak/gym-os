@@ -5,6 +5,9 @@ import { WhatsAppButton } from "@/components/members/whatsapp-button";
 import { markGiftKitDelivered } from "@/lib/actions/gift-kit";
 import { sendTermsLink } from "@/lib/actions/signing";
 import { fetchPendingTerms } from "@/lib/terms-pending";
+import { wakeReminder } from "@/lib/actions/reminders";
+import { fetchActiveSnoozes, snoozeMap } from "@/lib/reminder-snoozes";
+import { SnoozeButton } from "@/components/reminders/snooze-button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { MobilePageHeader } from "@/components/ui/mobile-page-header";
 
@@ -79,12 +82,19 @@ export default async function RemindersPage() {
   const duesList = pendingDues.data ?? [];
   const giftKitList = giftKits.data ?? [];
   const pendingTerms = await fetchPendingTerms(supabase, gymId);
+  const snoozes = await fetchActiveSnoozes(supabase, gymId);
+  const sMap = snoozeMap(snoozes);
+  const snoozedFor = (memberId: string, section: string) => sMap.get(`${memberId}:${section}`);
   const currentMonth = new Date().getMonth();
   const birthdayList = (birthdayMembers.data ?? [])
     .filter((m: any) => new Date(m.date_of_birth).getMonth() === currentMonth)
     .sort((a: any, b: any) => new Date(a.date_of_birth).getDate() - new Date(b.date_of_birth).getDate());
 
-  const expired = expiringList.filter((m: any) => daysUntil(m.end_date) < 0);
+  const expiredAll = expiringList.filter((m: any) => daysUntil(m.end_date) < 0);
+  // long-expired (60+ days) collapse behind a quiet link; recent stay visible
+  const expiredRecent = expiredAll.filter((m: any) => daysUntil(m.end_date) >= -60);
+  const expiredLong = expiredAll.filter((m: any) => daysUntil(m.end_date) < -60);
+  const expired = expiredRecent;
   const thisWeek = expiringList.filter((m: any) => {
     const d = daysUntil(m.end_date);
     return d >= 0 && d <= 7;
@@ -106,23 +116,33 @@ export default async function RemindersPage() {
   if (allMemberIds.length > 0) {
     const { data: contactEvents } = await supabase
       .from("member_events")
-      .select("member_id, created_at, title")
+      .select("member_id, created_at, title, users(name)")
       .eq("gym_id", gymId)
       .eq("event_type", "contact")
       .in("member_id", allMemberIds)
       .order("created_at", { ascending: false });
     for (const ev of contactEvents ?? []) {
       if (!contactMap[ev.member_id]) {
-        contactMap[ev.member_id] = ev;
+        contactMap[ev.member_id] = { ...ev, count: 1 };
+      } else {
+        contactMap[ev.member_id].count += 1;
       }
     }
   }
   const nowMs = new Date().getTime();
 
-  function contactStatus(memberId: string) {
+  // polite resend gaps per section (hours): dues 3d, expiring 7d, rest 24h
+  const GAP = { dues: 72, "expiring-week": 168, "expiring-month": 168, expired: 24, enrollments: 24, birthdays: 24 };
+  function contactStatus(memberId: string, section = "enrollments") {
     const last = contactMap[memberId];
     if (!last) return null;
-    return { last, isRecent: (nowMs - new Date(last.created_at).getTime()) / (1000 * 60 * 60) < 24 };
+    const gapH = (GAP as any)[section] ?? 24;
+    return {
+      last,
+      count: last.count ?? 1,
+      by: last.users?.name ?? null,
+      isRecent: (nowMs - new Date(last.created_at).getTime()) / (1000 * 60 * 60) < gapH,
+    };
   }
 
   function getTemplates(type: string) {
@@ -168,7 +188,6 @@ export default async function RemindersPage() {
                 templates={getTemplates("welcome_kit")}
                 vars={{ name: m.first_name, gym_name: gymName, digital_kit_url: digitalKitUrl }}
                 contactStatus={cs}
-                hideButtonAfterContact
               />
             );
           })}
@@ -176,97 +195,221 @@ export default async function RemindersPage() {
       )}
 
       {/* Expired */}
-      {expired.length > 0 && (
-        <Section title="Expired Memberships" count={expired.length} dot="bg-red-400" anchor="expired">
-          {expired.map((m: any) => {
-            const cs = contactStatus(m.member_id);
-            return (
-              <ReminderRow
-                key={m.id}
-                name={`${m.members?.first_name} ${m.members?.last_name ?? ""}`}
-                phone={m.members?.phone}
-                href={`/dashboard/members/${m.member_id}`}
-                info={`${m.packages?.name ?? ""} · expired ${formatDate(m.end_date)}`}
-                member={{ id: m.member_id, first_name: m.members?.first_name, last_name: m.members?.last_name, phone: m.members?.phone }}
-                templates={getTemplates("renewal")}
-                vars={{ name: m.members?.first_name, gym_name: gymName, package_name: m.packages?.name, end_date: formatDate(m.end_date) }}
-                contactStatus={cs}
-                hideButtonAfterContact
-              />
-            );
-          })}
-        </Section>
-      )}
+      {(() => {
+        const visible = expiredRecent.filter((m: any) => !snoozedFor(m.member_id, "expired"));
+        const snoozedRows = expiredRecent.filter((m: any) => snoozedFor(m.member_id, "expired"));
+        const show = visible.length > 0 || snoozedRows.length > 0 || expiredLong.length > 0;
+        return show ? (
+          <Section title="Expired Memberships" count={visible.length} dot="bg-red-400" anchor="expired">
+            {visible.map((m: any) => {
+              const cs = contactStatus(m.member_id, "expired");
+              return (
+                <ReminderRow
+                  key={m.id}
+                  name={`${m.members?.first_name} ${m.members?.last_name ?? ""}`}
+                  phone={m.members?.phone}
+                  href={`/dashboard/members/${m.member_id}`}
+                  info={`${m.packages?.name ?? ""} · expired ${formatDate(m.end_date)}`}
+                  member={{ id: m.member_id, first_name: m.members?.first_name, last_name: m.members?.last_name, phone: m.members?.phone }}
+                  templates={getTemplates("renewal")}
+                  vars={{ name: m.members?.first_name, gym_name: gymName, package_name: m.packages?.name, end_date: formatDate(m.end_date) }}
+                  contactStatus={cs}
+                  snooze={<SnoozeButton memberId={m.member_id} section="expired" />}
+                />
+              );
+            })}
+            {expiredLong.length > 0 && (
+              <details className="border-t border-zinc-100">
+                <summary className="cursor-pointer px-5 py-2.5 text-xs font-medium text-zinc-400 hover:text-zinc-600">
+                  {expiredLong.length} expired 60+ days ago · show
+                </summary>
+                {expiredLong.map((m: any) => {
+                  const cs = contactStatus(m.member_id, "expired");
+                  return (
+                    <ReminderRow
+                      key={m.id}
+                      name={`${m.members?.first_name} ${m.members?.last_name ?? ""}`}
+                      phone={m.members?.phone}
+                      href={`/dashboard/members/${m.member_id}`}
+                      info={`${m.packages?.name ?? ""} · expired ${formatDate(m.end_date)}`}
+                      member={{ id: m.member_id, first_name: m.members?.first_name, last_name: m.members?.last_name, phone: m.members?.phone }}
+                      templates={getTemplates("renewal")}
+                      vars={{ name: m.members?.first_name, gym_name: gymName, package_name: m.packages?.name, end_date: formatDate(m.end_date) }}
+                      contactStatus={cs}
+                    />
+                  );
+                })}
+              </details>
+            )}
+            {snoozedRows.length > 0 && (
+              <details className="border-t border-zinc-100">
+                <summary className="cursor-pointer px-5 py-2.5 text-xs font-medium text-zinc-400 hover:text-zinc-600">
+                  {snoozedRows.length} snoozed · show
+                </summary>
+                {snoozedRows.map((m: any) => {
+                  const sz = snoozedFor(m.member_id, "expired")!;
+                  return (
+                    <div key={m.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm text-zinc-500">{m.members?.first_name} {m.members?.last_name}</span>
+                        <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">back on {formatDate(sz.snoozed_until)}</span>
+                      </div>
+                      <form action={wakeReminder.bind(null, sz.id)}>
+                        <button type="submit" className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200">Wake</button>
+                      </form>
+                    </div>
+                  );
+                })}
+              </details>
+            )}
+          </Section>
+        ) : null;
+      })()}
 
       {/* Expiring This Week */}
-      {thisWeek.length > 0 && (
-        <Section title="Expiring This Week" count={thisWeek.length} dot="bg-amber-400" anchor="expiring-week">
-          {thisWeek.map((m: any) => {
-            const cs = contactStatus(m.member_id);
-            return (
-              <ReminderRow
-                key={m.id}
-                name={`${m.members?.first_name} ${m.members?.last_name ?? ""}`}
-                phone={m.members?.phone}
-                href={`/dashboard/members/${m.member_id}`}
-                info={`${m.packages?.name ?? ""} · ends ${formatDate(m.end_date)}`}
-                member={{ id: m.member_id, first_name: m.members?.first_name, last_name: m.members?.last_name, phone: m.members?.phone }}
-                templates={getTemplates("renewal")}
-                vars={{ name: m.members?.first_name, gym_name: gymName, package_name: m.packages?.name, end_date: formatDate(m.end_date) }}
-                contactStatus={cs}
-                hideButtonAfterContact
-              />
-            );
-          })}
-        </Section>
-      )}
+      {(() => {
+        const visible = thisWeek.filter((m: any) => !snoozedFor(m.member_id, "expiring-week"));
+        const snoozedRows = thisWeek.filter((m: any) => snoozedFor(m.member_id, "expiring-week"));
+        return visible.length > 0 || snoozedRows.length > 0 ? (
+          <Section title="Expiring This Week" count={visible.length} dot="bg-amber-400" anchor="expiring-week">
+            {visible.map((m: any) => {
+              const cs = contactStatus(m.member_id, "expiring-week");
+              return (
+                <ReminderRow
+                  key={m.id}
+                  name={`${m.members?.first_name} ${m.members?.last_name ?? ""}`}
+                  phone={m.members?.phone}
+                  href={`/dashboard/members/${m.member_id}`}
+                  info={`${m.packages?.name ?? ""} · ends ${formatDate(m.end_date)}`}
+                  member={{ id: m.member_id, first_name: m.members?.first_name, last_name: m.members?.last_name, phone: m.members?.phone }}
+                  templates={getTemplates("renewal")}
+                  vars={{ name: m.members?.first_name, gym_name: gymName, package_name: m.packages?.name, end_date: formatDate(m.end_date) }}
+                  contactStatus={cs}
+                  snooze={<SnoozeButton memberId={m.member_id} section="expiring-week" />}
+                />
+              );
+            })}
+            {snoozedRows.length > 0 && (
+              <details className="border-t border-zinc-100">
+                <summary className="cursor-pointer px-5 py-2.5 text-xs font-medium text-zinc-400 hover:text-zinc-600">
+                  {snoozedRows.length} snoozed · show
+                </summary>
+                {snoozedRows.map((m: any) => {
+                  const sz = snoozedFor(m.member_id, "expiring-week")!;
+                  return (
+                    <div key={m.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm text-zinc-500">{m.members?.first_name} {m.members?.last_name}</span>
+                        <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">back on {formatDate(sz.snoozed_until)}</span>
+                      </div>
+                      <form action={wakeReminder.bind(null, sz.id)}>
+                        <button type="submit" className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200">Wake</button>
+                      </form>
+                    </div>
+                  );
+                })}
+              </details>
+            )}
+          </Section>
+        ) : null;
+      })()}
 
       {/* Expiring This Month */}
-      {thisMonth.length > 0 && (
-        <Section title="Expiring This Month" count={thisMonth.length} dot="bg-zinc-300" anchor="expiring-month">
-          {thisMonth.map((m: any) => {
-            const cs = contactStatus(m.member_id);
-            return (
-              <ReminderRow
-                key={m.id}
-                name={`${m.members?.first_name} ${m.members?.last_name ?? ""}`}
-                phone={m.members?.phone}
-                href={`/dashboard/members/${m.member_id}`}
-                info={`${m.packages?.name ?? ""} · ends ${formatDate(m.end_date)}`}
-                member={{ id: m.member_id, first_name: m.members?.first_name, last_name: m.members?.last_name, phone: m.members?.phone }}
-                templates={getTemplates("renewal")}
-                vars={{ name: m.members?.first_name, gym_name: gymName, package_name: m.packages?.name, end_date: formatDate(m.end_date) }}
-                contactStatus={cs}
-                hideButtonAfterContact
-              />
-            );
-          })}
-        </Section>
-      )}
+      {(() => {
+        const visible = thisMonth.filter((m: any) => !snoozedFor(m.member_id, "expiring-month"));
+        const snoozedRows = thisMonth.filter((m: any) => snoozedFor(m.member_id, "expiring-month"));
+        return visible.length > 0 || snoozedRows.length > 0 ? (
+          <Section title="Expiring This Month" count={visible.length} dot="bg-zinc-300" anchor="expiring-month">
+            {visible.map((m: any) => {
+              const cs = contactStatus(m.member_id, "expiring-month");
+              return (
+                <ReminderRow
+                  key={m.id}
+                  name={`${m.members?.first_name} ${m.members?.last_name ?? ""}`}
+                  phone={m.members?.phone}
+                  href={`/dashboard/members/${m.member_id}`}
+                  info={`${m.packages?.name ?? ""} · ends ${formatDate(m.end_date)}`}
+                  member={{ id: m.member_id, first_name: m.members?.first_name, last_name: m.members?.last_name, phone: m.members?.phone }}
+                  templates={getTemplates("renewal")}
+                  vars={{ name: m.members?.first_name, gym_name: gymName, package_name: m.packages?.name, end_date: formatDate(m.end_date) }}
+                  contactStatus={cs}
+                  snooze={<SnoozeButton memberId={m.member_id} section="expiring-month" />}
+                />
+              );
+            })}
+            {snoozedRows.length > 0 && (
+              <details className="border-t border-zinc-100">
+                <summary className="cursor-pointer px-5 py-2.5 text-xs font-medium text-zinc-400 hover:text-zinc-600">
+                  {snoozedRows.length} snoozed · show
+                </summary>
+                {snoozedRows.map((m: any) => {
+                  const sz = snoozedFor(m.member_id, "expiring-month")!;
+                  return (
+                    <div key={m.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm text-zinc-500">{m.members?.first_name} {m.members?.last_name}</span>
+                        <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">back on {formatDate(sz.snoozed_until)}</span>
+                      </div>
+                      <form action={wakeReminder.bind(null, sz.id)}>
+                        <button type="submit" className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200">Wake</button>
+                      </form>
+                    </div>
+                  );
+                })}
+              </details>
+            )}
+          </Section>
+        ) : null;
+      })()}
 
       {/* Pending Dues */}
-      {duesList.length > 0 && (
-        <Section title="Pending Dues" count={duesList.length} dot="bg-amber-400" anchor="dues">
-          {duesList.map((d: any) => {
-            const balance = Number(d.total_amount) - Number(d.amount_paid);
-            const cs = contactStatus(d.member_id);
-            return (
-              <ReminderRow
-                key={d.id}
-                name={`${d.members?.first_name} ${d.members?.last_name ?? ""}`}
-                phone={d.members?.phone}
-                href={`/dashboard/members/${d.member_id}`}
-                info={canSeeFinances ? formatCurrency(balance) : "Pending payment"}
-                member={{ id: d.member_id, first_name: d.members?.first_name, last_name: d.members?.last_name, phone: d.members?.phone }}
-                templates={getTemplates("dues")}
-                vars={{ name: d.members?.first_name, gym_name: gymName, amount: formatCurrency(balance) }}
-                contactStatus={cs}
-                hideButtonAfterContact
-              />
-            );
-          })}
-        </Section>
-      )}
+      {(() => {
+        const visible = duesList.filter((d: any) => !snoozedFor(d.member_id, "dues"));
+        const snoozedRows = duesList.filter((d: any) => snoozedFor(d.member_id, "dues"));
+        return visible.length > 0 || snoozedRows.length > 0 ? (
+          <Section title="Pending Dues" count={visible.length} dot="bg-amber-400" anchor="dues">
+            {visible.map((d: any) => {
+              const balance = Number(d.total_amount) - Number(d.amount_paid);
+              const cs = contactStatus(d.member_id, "dues");
+              return (
+                <ReminderRow
+                  key={d.id}
+                  name={`${d.members?.first_name} ${d.members?.last_name ?? ""}`}
+                  phone={d.members?.phone}
+                  href={`/dashboard/members/${d.member_id}`}
+                  info={canSeeFinances ? formatCurrency(balance) : "Pending payment"}
+                  member={{ id: d.member_id, first_name: d.members?.first_name, last_name: d.members?.last_name, phone: d.members?.phone }}
+                  templates={getTemplates("dues")}
+                  vars={{ name: d.members?.first_name, gym_name: gymName, amount: formatCurrency(balance) }}
+                  contactStatus={cs}
+                  snooze={<SnoozeButton memberId={d.member_id} section="dues" />}
+                />
+              );
+            })}
+            {snoozedRows.length > 0 && (
+              <details className="border-t border-zinc-100">
+                <summary className="cursor-pointer px-5 py-2.5 text-xs font-medium text-zinc-400 hover:text-zinc-600">
+                  {snoozedRows.length} snoozed · show
+                </summary>
+                {snoozedRows.map((d: any) => {
+                  const sz = snoozedFor(d.member_id, "dues")!;
+                  return (
+                    <div key={d.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm text-zinc-500">{d.members?.first_name} {d.members?.last_name}</span>
+                        <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">back on {formatDate(sz.snoozed_until)}</span>
+                      </div>
+                      <form action={wakeReminder.bind(null, sz.id)}>
+                        <button type="submit" className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200">Wake</button>
+                      </form>
+                    </div>
+                  );
+                })}
+              </details>
+            )}
+          </Section>
+        ) : null;
+      })()}
 
       {/* Birthdays */}
       {birthdayList.length > 0 && (
@@ -290,7 +433,6 @@ export default async function RemindersPage() {
                 templates={birthdayTemplates}
                 vars={{ name: m.first_name, gym_name: gymName }}
                 contactStatus={cs}
-                hideButtonAfterContact
               />
             );
           })}
@@ -298,9 +440,12 @@ export default async function RemindersPage() {
       )}
 
       {/* Gift Kits Pending */}
-      {giftKitList.length > 0 && (
-        <Section title="Gift Kits Pending" count={giftKitList.length} dot="bg-blue-400" anchor="gift-kits">
-          {giftKitList.map((g: any) => {
+      {(() => {
+        const visible = giftKitList.filter((g: any) => !snoozedFor(g.member_id, "gift-kits"));
+        const snoozedRows = giftKitList.filter((g: any) => snoozedFor(g.member_id, "gift-kits"));
+        return visible.length > 0 || snoozedRows.length > 0 ? (
+          <Section title="Gift Kits Pending" count={visible.length} dot="bg-blue-400" anchor="gift-kits">
+          {visible.map((g: any) => {
             const digitalSent = !!g.digital_sent_at || !!contactMap[g.member_id];
             const giftTemplates = digitalSent ? [] : [...getTemplates("welcome_kit"), ...getTemplates("gift_kit")];
             return (
@@ -329,12 +474,35 @@ export default async function RemindersPage() {
                       Mark Delivered
                     </SubmitButton>
                   </form>
+                  <SnoozeButton memberId={g.member_id} section="gift-kits" />
                 </div>
               </div>
             );
           })}
-        </Section>
-      )}
+            {snoozedRows.length > 0 && (
+              <details className="border-t border-zinc-100">
+                <summary className="cursor-pointer px-5 py-2.5 text-xs font-medium text-zinc-400 hover:text-zinc-600">
+                  {snoozedRows.length} snoozed · show
+                </summary>
+                {snoozedRows.map((g: any) => {
+                  const sz = snoozedFor(g.member_id, "gift-kits")!;
+                  return (
+                    <div key={g.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm text-zinc-500">{g.members?.first_name} {g.members?.last_name}</span>
+                        <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">back on {formatDate(sz.snoozed_until)}</span>
+                      </div>
+                      <form action={wakeReminder.bind(null, sz.id)}>
+                        <button type="submit" className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200">Wake</button>
+                      </form>
+                    </div>
+                  );
+                })}
+              </details>
+            )}
+          </Section>
+        ) : null;
+      })()}
 
       {/* Terms Pending Signature */}
       {pendingTerms.length > 0 && (
@@ -416,7 +584,7 @@ function ReminderRow({
   templates,
   vars,
   contactStatus,
-  hideButtonAfterContact,
+  snooze,
 }: {
   name: string;
   phone: string | null;
@@ -425,11 +593,14 @@ function ReminderRow({
   member: { id: string; first_name: string; last_name: string | null; phone: string };
   templates: any[];
   vars: Record<string, string | null | undefined>;
-  contactStatus?: { last: any; isRecent: boolean } | null;
-  hideButtonAfterContact?: boolean;
+  contactStatus?: { last: any; isRecent: boolean; count?: number; by?: string | null } | null;
+  snooze?: React.ReactNode;
 }) {
   const contacted = !!contactStatus;
-  const showButton = !contacted || (contacted && !hideButtonAfterContact && !contactStatus?.isRecent);
+  // the section's resend gap governs when the button returns (dues 3d,
+  // expiring 7d, else 24h) — messaged rows show ✓ Sent until the gap passes
+  const showButton = !contacted || !contactStatus?.isRecent;
+  const times = (contactStatus?.count ?? 1) > 1 ? `${contactStatus?.count}× · ` : "";
 
   return (
     <div className="flex items-center justify-between px-5 py-3">
@@ -440,14 +611,17 @@ function ReminderRow({
         {phone && <span className="ml-2 text-xs text-zinc-400">{phone}</span>}
         {info && <span className="ml-2 text-xs text-zinc-400">· {info}</span>}
       </div>
-      <div className="flex items-center gap-2">
-        {contacted ? (
-          <span className="text-xs font-medium text-green-600">✓ Sent {timeAgo(contactStatus!.last.created_at)}</span>
+      <div className="flex shrink-0 items-center gap-2">
+        {contacted && !showButton ? (
+          <span className="text-xs font-medium text-green-600" title={contactStatus?.by ?? undefined}>
+            ✓ Sent {times}{contactStatus?.by ? `${contactStatus.by} · ` : ""}{timeAgo(contactStatus!.last.created_at)}
+          </span>
         ) : (
           templates.length > 0 && (
             <WhatsAppButton member={member} templates={templates} vars={vars} redirect_to="/dashboard/reminders" />
           )
         )}
+        {snooze}
       </div>
     </div>
   );

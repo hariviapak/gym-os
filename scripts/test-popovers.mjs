@@ -2,6 +2,18 @@
 // open, be fully visible, close on outside click, and launch its action.
 // Usage: node scripts/test-popovers.mjs [baseUrl]
 import { chromium } from "playwright";
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "fs";
+const envKeys = Object.fromEntries(
+  readFileSync(".env.local", "utf8")
+    .split("\n")
+    .filter((l) => l.includes("="))
+    .map((l) => [l.split("=")[0], l.split("=").slice(1).join("=")])
+);
+const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+  auth: { persistSession: false },
+});
+const GYM_ID = "00000000-0000-0000-0000-000000000001";
 
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "admin@792fitness.com";
@@ -119,6 +131,62 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
     check("bottom nav slimmer (no Payments tab)", navHasPayments === 0);
   }
 
+  await browser.close();
+}
+
+// ---- member status + delete forms inside the More ▾ popover ----
+// (regression: the popover used to unmount these forms mid-click, silently
+// cancelling the server action)
+{
+  console.log("\n--- More ▾ popover forms (deactivate / reactivate / delete) ---");
+  await db.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
+  const { data: orphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Popform");
+  for (const o of orphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
+  const phone = String(1000000000 + Math.floor(Math.random() * 8999999999));
+  const { data: member } = await db
+    .from("members")
+    .insert({ gym_id: GYM_ID, first_name: "Popform", last_name: "Test", phone, status: "active" })
+    .select()
+    .single();
+
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  page.on("dialog", (d) => d.accept());
+  await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  await page.fill('input[name="email"]', "admin@792fitness.com");
+  await page.fill('input[name="password"]', "Admin@792Fit");
+  await Promise.all([page.waitForNavigation(), page.click("form button")]);
+
+  const status = () => db.from("members").select("status").eq("id", member.id).single().then((r) => r.data?.status);
+  const waitFor = async (fn, label, timeout = 20000) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeout) {
+      if (await fn()) return true;
+      await page.waitForTimeout(250);
+    }
+    console.log("[timeout]", label);
+    return false;
+  };
+
+  // deactivate via the popover form
+  await page.goto(`${BASE}/dashboard/members/${member.id}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "More ▾" }).click();
+  await page.getByRole("button", { name: "Deactivate member" }).click();
+  check("deactivate form fires (popover no longer cancels it)",
+    await waitFor(async () => (await status()) === "deactivated", "deactivate"));
+
+  // the menu reflects the new state
+  await page.getByRole("button", { name: "More ▾" }).click();
+  check("menu now offers Reactivate", (await page.getByRole("button", { name: "Reactivate member" }).count()) === 1);
+  await page.getByRole("button", { name: "Reactivate member" }).click();
+  check("reactivate form fires", await waitFor(async () => (await status()) === "active", "reactivate"));
+
+  // delete via the popover form (confirm dialog auto-accepted)
+  await page.getByRole("button", { name: "More ▾" }).click();
+  await page.getByRole("button", { name: "Delete member" }).click();
+  check("delete form fires (member removed)",
+    await waitFor(async () => (await db.from("members").select("id").eq("id", member.id).maybeSingle()).data === null, "delete"));
+  await page.close();
   await browser.close();
 }
 

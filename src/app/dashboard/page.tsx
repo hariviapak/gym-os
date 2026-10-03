@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatCurrencyCompact, formatDate, todayIST, addDaysIST, monthStartIST } from "@/lib/utils";
 import { fetchPendingTerms } from "@/lib/terms-pending";
+import { fetchActiveSnoozes, snoozedMembersBySection } from "@/lib/reminder-snoozes";
 import Link from "next/link";
 
 // DASHBOARD = "What needs my attention?" — a calm traffic controller.
@@ -56,7 +57,7 @@ export default async function DashboardPage({
     supabase.from("receipts").select("payment_id").eq("gym_id", gymId).not("voided_at", "is", null),
     supabase
       .from("memberships")
-      .select("id", { count: "exact", head: true })
+      .select("member_id")
       .eq("gym_id", gymId)
       .eq("status", "active")
       .lte("start_date", todayStr)
@@ -85,7 +86,7 @@ export default async function DashboardPage({
       .lte("due_date", todayStr),
     supabase
       .from("gift_kit_tasks")
-      .select("id", { count: "exact", head: true })
+      .select("member_id")
       .eq("gym_id", gymId)
       .in("status", ["pending", "assigned"]),
     supabase.from("locker_keys").select("id, key_number, attention, status").eq("gym_id", gymId),
@@ -110,13 +111,27 @@ export default async function DashboardPage({
     const cur = (duesByMember.get(d.member_id) ?? 0) + Math.max(0, Number(d.total_amount) - Number(d.amount_paid));
     duesByMember.set(d.member_id, cur);
   });
-  const duesMemberCount = [...duesByMember.values()].filter((v) => v > 0.01).length;
-  const totalDue = [...duesByMember.values()].reduce((s, v) => s + v, 0);
+  // Needs Attention counts must match what Reminders actually shows —
+  // snoozed members are parked, so they don't count as attention needed.
+  const snoozeSets = snoozedMembersBySection(await fetchActiveSnoozes(supabase, gymId));
+  const snoozedIds = (section: string) => snoozeSets.get(section) ?? new Set<string>();
 
-  const expiredCount = ((expiredBucket.data ?? []) as any[]).filter((b) => b.bucket === "expired").length;
-  const expiringCount = expiring7.count ?? 0;
+  const duesMemberCount = [...duesByMember.keys()].filter(
+    (id) => duesByMember.get(id)! > 0.01 && !snoozedIds("dues").has(id)
+  ).length;
+  const totalDue = [...duesByMember.entries()]
+    .filter(([id]) => !snoozedIds("dues").has(id))
+    .reduce((s, [, v]) => s + v, 0);
+
+  const expiredCount = ((expiredBucket.data ?? []) as any[]).filter(
+    (b) => b.bucket === "expired" && !snoozedIds("expired").has(b.member_id)
+  ).length;
+  const expiringCount = new Set(
+    ((expiring7.data ?? []) as any[]).map((m: any) => m.member_id).filter((id: string) => !snoozedIds("expiring-week").has(id))
+  ).size;
   const overdueTaskCount = overdueTasks.count ?? 0;
-  const giftKitCount = giftKits.count ?? 0;
+    const giftKitRows = giftKits.data ?? [];
+  const giftKitCount = giftKitRows.filter((g: any) => !snoozedIds("gift-kits").has(g.member_id)).length;
   const flaggedKeys = (lockerKeys.data ?? []).filter((k: any) => k.attention).length;
   const keysAvailable = (lockerKeys.data ?? []).filter((k: any) => k.status === "available").length;
   const keysIssued = (lockerKeys.data ?? []).filter((k: any) => k.status === "issued").length;

@@ -71,7 +71,10 @@ export function PopoverMenu({
               visibility: pos ? "visible" : "hidden",
             }}
             onClick={(e) => {
-              // close as soon as any action inside is activated
+              // close as soon as any action inside is activated — EXCEPT
+              // server-action forms: closing unmounts the panel mid-click and
+              // a detached form cannot submit, silently cancelling the action
+              if ((e.target as HTMLElement).closest("form")) return;
               if ((e.target as HTMLElement).closest("button, a")) setOpen(false);
             }}
             className={`z-[80] overflow-hidden rounded-xl bg-white py-1 shadow-xl ring-1 ring-zinc-200 ${panelClassName}`}
