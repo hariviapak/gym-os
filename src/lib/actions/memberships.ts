@@ -74,6 +74,20 @@ export async function renewMembership(formData: FormData) {
     startDateStr = todayStr;
   }
 
+  // Staff override: an explicit start date beats the computed queue date.
+  // Same backdate rule as freezes — at most 7 days in the past; future starts
+  // are free ("starts Monday").
+  const overrideStr = ((formData.get("start_date") as string) ?? "").trim();
+  if (overrideStr) {
+    const backdatedDays = Math.ceil(
+      (new Date(todayStr).getTime() - new Date(overrideStr).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (backdatedDays > 7) {
+      redirect(`/dashboard/members/${memberId}?error=` + encodeURIComponent("Start date cannot be more than 7 days in the past"));
+    }
+    startDateStr = overrideStr;
+  }
+
   const startDate = new Date(startDateStr);
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + pkg.duration_days);

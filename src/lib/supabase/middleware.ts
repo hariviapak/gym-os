@@ -35,7 +35,7 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require auth
-  const publicRoutes = ['/login', '/sign/', '/api/cron/daily-tasks'];
+  const publicRoutes = ['/login', '/sign/', '/r/', '/api/cron/daily-tasks'];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   // Redirect to login if not authenticated and trying to access a protected route

@@ -7,6 +7,10 @@ import Link from "next/link";
 // Public (token-gated) signed-copy view: after signing, the member can open
 // this from the success screen to read or download the exact document the
 // gym keeps — same layout as the staff signed-documents page.
+// token-gated personal links must never be cached — their state (expired/
+// used/voided) changes underneath
+export const dynamic = "force-dynamic";
+
 export default async function SignedCopyPage({
   params,
 }: {

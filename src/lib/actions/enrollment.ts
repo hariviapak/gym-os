@@ -65,6 +65,13 @@ export async function enrollMember(formData: FormData) {
   }
 
   const startDateStr = (formData.get("start_date") as string) || todayIST();
+  // backdate cap — same rule as freezes: at most 7 days in the past
+  const backdatedDays = Math.ceil(
+    (new Date(todayIST()).getTime() - new Date(startDateStr).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  if (backdatedDays > 7) {
+    redirect("/dashboard/members/new?error=" + encodeURIComponent("Start date cannot be more than 7 days in the past"));
+  }
   const startDate = new Date(startDateStr);
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + pkg.duration_days);

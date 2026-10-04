@@ -78,6 +78,22 @@ export function RenewalModal({
       )
     : undefined;
 
+  // mirror the server's auto start rules: renewals queue after the current
+  // plan ends; add-ons / trials / day passes start today
+  // impure date math lives in a lazy useState initializer (runs once per
+  // mount) so the compiler keeps render pure
+  const [todayStr] = useState(() => new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10));
+  const [minStart] = useState(
+    () => new Date(Date.now() - 7 * 86400000 + 5.5 * 3600000).toISOString().slice(0, 10)
+  );
+  const isRenewalQueued = !!(
+    pkg &&
+    pkg.type === "membership" &&
+    relevantPlan &&
+    relevantPlan.endDate >= todayStr
+  );
+  const computedStart = isRenewalQueued ? relevantPlan.endDate : todayStr;
+
   let amount = 0;
   let gstAmount = 0;
   let totalAmount = 0;
@@ -182,6 +198,24 @@ export function RenewalModal({
 
             <form action={renewMembership} className="space-y-4">
               <input type="hidden" name="member_id" value={memberId} />
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-600">Start date *</label>
+                <input
+                  key={selectedPackageId}
+                  name="start_date"
+                  type="date"
+                  defaultValue={computedStart}
+                  min={minStart}
+                  className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                />
+                <p className="mt-1 text-xs text-zinc-400">
+                  {isRenewalQueued
+                    ? `Prefilled to queue after your current plan ends (${formatDate(computedStart)}).`
+                    : "Prefilled to start today."}{" "}
+                  Adjust only if the real start differs — backdating is capped at 7 days.
+                </p>
+              </div>
 
               <div>
                 <label className="block text-xs font-medium text-zinc-600">Package *</label>

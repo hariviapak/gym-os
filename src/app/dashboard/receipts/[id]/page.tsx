@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PrintButton } from "@/components/receipts/receipt-actions";
 import { VoidReceiptButton } from "@/components/receipts/void-receipt-button";
+import { sendReceiptToMember } from "@/lib/actions/receipts";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export default async function ReceiptPage({
   params,
@@ -56,18 +58,29 @@ export default async function ReceiptPage({
 
   const isVoided = !!receipt.voided_at;
   const prefix = settings?.receipt_prefix ?? "RCT";
+  const member = receipt.members as any;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       {/* Action bar */}
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Link
           href="/dashboard/payments"
           className="text-sm font-medium text-zinc-600 hover:text-zinc-900"
         >
           ← Back to Payments
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {member?.phone && !isVoided && (
+            <form action={sendReceiptToMember.bind(null, receipt.id)}>
+              <SubmitButton
+                className="rounded-lg bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 ring-1 ring-green-200 transition hover:bg-green-100"
+                label="Opening…"
+              >
+                Send to member
+              </SubmitButton>
+            </form>
+          )}
           {canVoid && !isVoided && <VoidReceiptButton receiptId={receipt.id} />}
           <PrintButton />
         </div>

@@ -3,6 +3,10 @@ import { SignForm } from "@/components/members/sign-form";
 import { PrintButton } from "@/components/terms/print-button";
 import { notFound } from "next/navigation";
 
+// token-gated personal links must never be cached — their state (expired/
+// used/voided) changes underneath
+export const dynamic = "force-dynamic";
+
 export default async function SignPage({
   params,
 }: {

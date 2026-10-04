@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 
-export function PrintButton() {
+export function PrintButton({ label = "Print Receipt" }: { label?: string }) {
   return (
     <button
       onClick={() => window.print()}
-      className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800"
+      className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 print:hidden"
     >
-      Print Receipt
+      {label}
     </button>
   );
 }
