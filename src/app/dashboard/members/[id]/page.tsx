@@ -63,7 +63,7 @@ export default async function MemberProfilePage({
         .eq("member_id", id)
         .order("created_at", { ascending: false }),
       supabase.from("member_events").select("*").eq("member_id", id).order("created_at", { ascending: false }).limit(50),
-      supabase.from("payments").select("id, amount, mode, reference_note, payment_date, created_at, receipts!payments_receipt_id_fkey(id, receipt_no, voided_at)").eq("member_id", id).order("payment_date", { ascending: false }),
+      supabase.from("payments").select("id, amount, mode, reference_note, payment_date, created_at, receipts!receipts_payment_id_fkey(id, receipt_no, voided_at)").eq("member_id", id).order("payment_date", { ascending: false }),
       supabase.from("refunds").select("id, amount, reason, created_at").eq("member_id", id).order("created_at", { ascending: false }),
       supabase.from("gift_kit_tasks").select("*").eq("member_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("packages").select("*").eq("gym_id", gymId).eq("is_active", true).order("sort_order", { ascending: true }),
@@ -400,9 +400,9 @@ export default async function MemberProfilePage({
               mode: p.mode,
               referenceNote: p.reference_note,
               paymentDate: p.payment_date,
-              receiptNo: p.receipts?.receipt_no ?? null,
-              receiptId: p.receipts?.id ?? null,
-              voided: !!p.receipts?.voided_at,
+              receiptNo: p.receipts?.[0]?.receipt_no ?? null,
+              receiptId: p.receipts?.[0]?.id ?? null,
+              voided: !!p.receipts?.[0]?.voided_at,
             }))}
           />
         </div>

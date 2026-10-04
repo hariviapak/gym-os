@@ -138,6 +138,36 @@ const browser = await chromium.launch();
   await ctx.close();
 }
 
+// ---- mobile navigation paths to the receipt ----
+{
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  await page.fill('input[name="email"]', EMAIL);
+  await page.fill('input[name="password"]', PASSWORD);
+  await Promise.all([page.waitForNavigation(), page.click("form button")]);
+
+  // payments card → Receipt button
+  await page.goto(`${BASE}/dashboard/payments`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  const card = page.locator("div.rounded-xl", { hasText: "Receipttest Pending" }).first();
+  const receiptBtn = card.getByRole("link", { name: "Receipt", exact: true });
+  check("payments card has Receipt button", (await receiptBtn.count()) === 1);
+  await receiptBtn.click();
+  await page.waitForURL(/dashboard\/receipts\//, { timeout: 20000 });
+  check("Receipt button opens the receipt page", true);
+
+  // member profile → payment ⋯ → View receipt
+  await page.goto(`${BASE}/dashboard/members/${member.id}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(600);
+  await page.getByRole("button", { name: /View payment history/ }).click();
+  await page.waitForTimeout(400);
+  const row = page.locator('div.rounded-lg.bg-zinc-50', { hasText: `R#${receipt.receipt_no}` }).first();
+  await row.getByRole("button", { name: "⋯" }).click();
+  await page.getByRole("link", { name: "View receipt →" }).waitFor({ timeout: 10000 });
+  check("profile payment ⋯ has View receipt", true);
+  await page.close();
+}
+
 await browser.close();
 
 // cleanup: member cascade removes payment/receipt/tokens

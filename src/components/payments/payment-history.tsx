@@ -64,6 +64,14 @@ export function PaymentHistory({ memberId, memberPhone, payments }: { memberId: 
                   )}
                 >
                   <div className="py-1">
+                    {p.receiptId && (
+                      <Link
+                        href={`/dashboard/receipts/${p.receiptId}`}
+                        className="block w-full px-3 py-1.5 text-left text-xs font-semibold text-zinc-900 transition hover:bg-zinc-50"
+                      >
+                        View receipt →
+                      </Link>
+                    )}
                     <div className="px-2 py-1">
                         <PaymentEditModal
                           paymentId={p.id}

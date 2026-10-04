@@ -327,7 +327,7 @@ export async function refundPayment(formData: FormData) {
 
   const { data: payment } = await supabase
     .from("payments")
-    .select("id, gym_id, member_id, membership_id, amount, receipt_id, receipts!payments_receipt_id_fkey(voided_at)")
+    .select("id, gym_id, member_id, membership_id, amount, receipt_id, receipts!receipts_payment_id_fkey(voided_at)")
     .eq("id", paymentId)
     .eq("gym_id", userData.gym_id)
     .single();

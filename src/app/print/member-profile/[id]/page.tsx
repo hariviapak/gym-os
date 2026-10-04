@@ -47,7 +47,7 @@ export default async function MemberProfilePrintPage({
         .order("start_date", { ascending: false }),
       supabase
         .from("payments")
-        .select("id, amount, mode, reference_note, payment_date, receipts!payments_receipt_id_fkey(id, receipt_no, voided_at)")
+        .select("id, amount, mode, reference_note, payment_date, receipts!receipts_payment_id_fkey(id, receipt_no, voided_at)")
         .eq("member_id", id)
         .order("payment_date", { ascending: false }),
       supabase.from("refunds").select("amount, reason, created_at").eq("member_id", id).order("created_at", { ascending: false }),

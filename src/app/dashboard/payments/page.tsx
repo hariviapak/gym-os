@@ -158,12 +158,23 @@ export default async function PaymentsPage({
                   {p.receipts?.[0] && ` · R#${p.receipts[0].receipt_no}`}
                 </p>
               </Link>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-bold text-zinc-900">{formatCurrency(p.amount)}</p>
-                {voided ? (
-                  <p className="text-[10px] font-semibold uppercase text-red-500">Voided</p>
-                ) : (
-                  <p className="text-[10px] font-medium uppercase text-zinc-400">Collected</p>
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="text-right">
+                  <p className="text-sm font-bold text-zinc-900">{formatCurrency(p.amount)}</p>
+                  {voided ? (
+                    <p className="text-[10px] font-semibold uppercase text-red-500">Voided</p>
+                  ) : (
+                    <p className="text-[10px] font-medium uppercase text-zinc-400">Collected</p>
+                  )}
+                </div>
+                {p.receipts?.[0] && (
+                  <Link
+                    href={`/dashboard/receipts/${p.receipts[0].id}`}
+                    className="rounded-lg bg-zinc-100 px-2.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200"
+                    title="View receipt"
+                  >
+                    Receipt
+                  </Link>
                 )}
               </div>
             </div>
