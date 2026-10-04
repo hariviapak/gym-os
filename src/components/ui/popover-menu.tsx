@@ -73,9 +73,13 @@ export function PopoverMenu({
             onClick={(e) => {
               // close as soon as any action inside is activated — EXCEPT
               // server-action forms: closing unmounts the panel mid-click and
-              // a detached form cannot submit, silently cancelling the action
-              if ((e.target as HTMLElement).closest("form")) return;
-              if ((e.target as HTMLElement).closest("button, a")) setOpen(false);
+              // a detached form cannot submit, silently cancelling the action.
+              // Dialog openers ([data-popover-keep]) also stay — unmounting
+              // would kill the dialog they just opened.
+              const t = e.target as HTMLElement;
+              if (t.closest("form")) return;
+              if (t.closest("[data-popover-keep]")) return;
+              if (t.closest("button, a")) setOpen(false);
             }}
             className={`z-[80] overflow-hidden rounded-xl bg-white py-1 shadow-xl ring-1 ring-zinc-200 ${panelClassName}`}
           >

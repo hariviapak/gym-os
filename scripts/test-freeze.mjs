@@ -145,6 +145,50 @@ check("backdate >7 days rejected", /Cannot backdate freeze more than 7 days/.tes
 const freezesNow = (await db.from("membership_freezes").select("id").eq("member_id", member.id)).data.length;
 check("no freeze row created for rejected backdate", freezesNow === 1, `${freezesNow} rows`);
 
+// ---- 5. day passes/trials cannot be frozen ----
+{
+  const { data: dpPkg } = await db
+    .from("packages")
+    .select("id")
+    .eq("gym_id", GYM_ID)
+    .eq("type", "day_pass")
+    .limit(1)
+    .maybeSingle();
+  if (dpPkg) {
+    const dpPhone = String(1000000000 + Math.floor(Math.random() * 8999999999));
+    const { data: dpMember } = await db
+      .from("members")
+      .insert({ gym_id: GYM_ID, first_name: "Daypass", last_name: "Nofreeze", phone: dpPhone, status: "active" })
+      .select()
+      .single();
+    await db.from("memberships").insert({
+      gym_id: GYM_ID,
+      member_id: dpMember.id,
+      package_id: dpPkg.id,
+      start_date: TODAY,
+      end_date: TODAY,
+      status: "active",
+      amount: 600,
+      gst_amount: 0,
+      total_amount: 600,
+      amount_paid: 600,
+    });
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+    await page.fill('input[name="email"]', EMAIL);
+    await page.fill('input[name="password"]', PASSWORD);
+    await Promise.all([page.waitForNavigation(), page.click("form button")]);
+    await page.goto(`${BASE}/dashboard/members/${dpMember.id}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(600);
+    const body = await page.locator("body").innerText();
+    check("day pass: Freeze link hidden", !/>\s*Freeze\s*</.test(body) && !body.includes("Request a freeze"));
+    await page.close();
+    await db.rpc("hard_delete_member", { p_member_id: dpMember.id });
+  } else {
+    console.log("  (no day_pass package seeded — skip)");
+  }
+}
+
 await browser.close();
 
 // cleanup

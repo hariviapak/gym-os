@@ -62,8 +62,8 @@ check("URL unchanged (no navigation)", !page.url().includes("?"));
 
 // ---- 2. RETURN ----
 t0 = Date.now();
-page.once("dialog", (d) => d.accept());
 await issuedCard.locator("button", { hasText: "Return" }).click();
+await page.getByRole("button", { name: "Return key" }).click();
 await page.locator("div.ring-1", { hasText: "TEST-TIMING-1" }).first()
   .locator("button", { hasText: "Issue" }).waitFor({ timeout: 20000 });
 const returnMs = Date.now() - t0;

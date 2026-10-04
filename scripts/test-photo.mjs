@@ -69,7 +69,7 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 page.on("pageerror", (e) => console.log("[pageerror]", e.message.slice(0, 150)));
-page.on("dialog", (d) => d.accept());
+
 
 // login
 await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
@@ -197,6 +197,7 @@ try {
   // ---------- (3) remove ----------
   await openWidget();
   await page.getByRole("button", { name: "Remove Photo" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Remove photo" }).click();
   await page.waitForTimeout(2500);
   const { data: m3 } = await db.from("members").select("photo_url, photo_path").eq("id", tm.id).single();
   check("record cleared", !m3.photo_url && !m3.photo_path);
@@ -236,6 +237,7 @@ try {
   // ---------- (5) empty-state menu after final remove ----------
   await openWidget();
   await page.getByRole("button", { name: "Remove Photo" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Remove photo" }).click();
   await page.waitForTimeout(2500);
   await openWidget();
   check("Remove hidden when no photo", (await page.getByRole("button", { name: "Remove Photo" }).count()) === 0);

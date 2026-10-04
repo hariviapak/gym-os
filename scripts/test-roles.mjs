@@ -200,7 +200,7 @@ console.log("\n--- front-line locker cycle (staff + trainer) ---");
   });
 
   const staffPage = await loginAs(TEST_USERS[1].email);
-  staffPage.on("dialog", (d) => d.accept());
+  
   await staffPage.goto(`${BASE}/dashboard/locker-keys`, { waitUntil: "networkidle" });
   const card = staffPage.locator("div.ring-1", { hasText: "TEST-ROLES-1" }).first();
   await card.getByRole("button", { name: "Issue", exact: true }).click();
@@ -213,10 +213,11 @@ console.log("\n--- front-line locker cycle (staff + trainer) ---");
   await staffPage.close();
 
   const trainerPage = await loginAs(TEST_USERS[2].email);
-  trainerPage.on("dialog", (d) => d.accept());
+  
   await trainerPage.goto(`${BASE}/dashboard/locker-keys`, { waitUntil: "networkidle" });
   const card2 = trainerPage.locator("div.ring-1", { hasText: "TEST-ROLES-1" }).first();
   await card2.locator("button", { hasText: "Return" }).first().click();
+  await trainerPage.getByRole("button", { name: "Return key" }).click();
   await card2.getByRole("button", { name: "Issue", exact: true }).waitFor({ timeout: 20000 });
   check("trainer can RETURN a locker key", true);
   const { data: keyAfter } = await anon.from("locker_keys").select("status, current_member_id").eq("key_number", "TEST-ROLES-1").single();

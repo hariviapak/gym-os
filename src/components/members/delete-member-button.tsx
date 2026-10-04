@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { deleteMember } from "@/lib/actions/members";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export function DeleteMemberButton({
   memberId,
@@ -13,33 +15,47 @@ export function DeleteMemberButton({
   membershipCount?: number;
   paymentCount?: number;
 }) {
+  const [open, setOpen] = useState(false);
   const hasHistory = membershipCount > 0 || paymentCount > 0;
 
   return (
-    <form
-      action={deleteMember.bind(null, memberId)}
-      onSubmit={(e) => {
-        const ok = window.confirm(
-          `Delete ${memberName} permanently? They will disappear from the member list. This cannot be undone.`
-        );
-        if (!ok) {
-          e.preventDefault();
-          return;
-        }
-        if (hasHistory) {
-          const really = window.confirm(
-            `${memberName} has ${membershipCount} membership(s) and ${paymentCount} payment(s).\n\nDeleting them will ALSO permanently delete these memberships, payments and their receipts.\n\nIf you only want them off the active list, cancel now and use "Deactivate" instead.\n\nDelete everything?`
-          );
-          if (!really) e.preventDefault();
-        }
-      }}
-    >
+    <>
       <button
-        type="submit"
+        type="button"
+        data-popover-keep
+        onClick={() => setOpen(true)}
         className="rounded-lg px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
       >
         Delete member
       </button>
-    </form>
+      <ConfirmDialog
+        open={open}
+        title={`Delete ${memberName} permanently?`}
+        body={
+          hasHistory ? (
+            <div className="space-y-2">
+              <p>
+                They have {membershipCount} membership(s) and {paymentCount} payment(s). Deleting them will ALSO
+                permanently delete these memberships, payments, and their receipts.
+              </p>
+              <p className="text-zinc-500">
+                If you only want them off the active list, cancel now and use &quot;Deactivate&quot; instead.
+              </p>
+            </div>
+          ) : (
+            "They will disappear from the member list. This cannot be undone."
+          )
+        }
+        confirmLabel="Delete everything"
+        danger
+        onConfirm={() => {
+          setOpen(false);
+          // direct server-action call (no form needed — native confirms are
+          // suppressed in iOS PWAs, so the confirm lives in the dialog)
+          void deleteMember(memberId);
+        }}
+        onCancel={() => setOpen(false)}
+      />
+    </>
   );
 }

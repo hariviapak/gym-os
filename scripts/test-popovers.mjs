@@ -151,7 +151,6 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
 
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-  page.on("dialog", (d) => d.accept());
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
   await page.fill('input[name="email"]', "admin@792fitness.com");
   await page.fill('input[name="password"]', "Admin@792Fit");
@@ -184,6 +183,7 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
   // delete via the popover form (confirm dialog auto-accepted)
   await page.getByRole("button", { name: "More ▾" }).click();
   await page.getByRole("button", { name: "Delete member" }).click();
+  await page.getByRole("button", { name: "Delete everything" }).click();
   check("delete form fires (member removed)",
     await waitFor(async () => (await db.from("members").select("id").eq("id", member.id).maybeSingle()).data === null, "delete"));
   await page.close();

@@ -261,7 +261,7 @@ export default async function MemberProfilePage({
               </Link>
             )}
             {canManage && activeMembership && <ExtendModal memberId={member.id} currentPlans={plansForModals} />}
-            {canManage && activeMembership && !isFrozen && (
+            {canManage && activeMembership && !isFrozen && activeMembership.packages?.type === "membership" && (
               <Link
                 href="#freeze"
                 className="whitespace-nowrap rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
@@ -302,7 +302,11 @@ export default async function MemberProfilePage({
             )}
           </div>
         ))}
-        {canManage && activeMembership && !isFrozen && activeFreezes.length === 0 && (
+        {canManage &&
+          activeMembership &&
+          activeMembership.packages?.type === "membership" &&
+          !isFrozen &&
+          activeFreezes.length === 0 && (
           <details className={`${cardClass} px-4 py-3`}>
             <summary className="cursor-pointer text-sm font-medium text-zinc-600">Request a freeze</summary>
             <form action={requestFreeze} className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">

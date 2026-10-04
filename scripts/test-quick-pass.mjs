@@ -149,6 +149,17 @@ const { data: dup } = await db
   .eq("phone", "91" + existingMember.phone.replace(/\D/g, "").slice(-10))
   .eq("first_name", "QP Test Two")
   .maybeSingle();
+if (dup) {
+  const { data: ms } = await db
+    .from("memberships")
+    .select("start_date, end_date, packages(type, duration_days)")
+    .eq("member_id", dup.id)
+    .limit(1)
+    .maybeSingle();
+  const pkg = ms?.packages;
+  const sameDay = pkg?.duration_days === 1 ? ms?.start_date === ms?.end_date : true;
+  check("day pass/trial ends SAME DAY (1-day)", sameDay, `${ms?.start_date} → ${ms?.end_date}`);
+}
 check("separate member created with same phone", !!dup && dup.id !== existingMember.id);
 if (dup) {
   await cleanup(dup.id, "(c)");

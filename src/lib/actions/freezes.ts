@@ -35,6 +35,18 @@ export async function requestFreeze(formData: FormData) {
     redirect(`/dashboard/members/${memberId}?error=${encodeURIComponent("Cannot backdate freeze more than 7 days")}`);
   }
 
+  // Freezes apply to real memberships only — a frozen day pass or trial is
+  // nonsense (each frozen day would extend a 1-day pass)
+  const { data: msWithPkg } = await supabase
+    .from("memberships")
+    .select("id, packages(type)")
+    .eq("id", membershipId)
+    .eq("gym_id", gymId)
+    .single();
+  if (!msWithPkg || (msWithPkg.packages as any)?.type !== "membership") {
+    redirect(`/dashboard/members/${memberId}?error=${encodeURIComponent("Day passes and trials cannot be frozen")}`);
+  }
+
   const { error } = await supabase.from("membership_freezes").insert({
     gym_id: gymId,
     membership_id: membershipId,
@@ -94,6 +106,18 @@ export async function approveFreeze(freezeId: string, memberId: string, _formDat
     .single();
 
   if (!freeze) redirect(`/dashboard/members/${memberId}`);
+
+  // only real memberships can be frozen (request gates this; the approve
+  // path is the backstop for anything already pending)
+  const { data: msWithPkg } = await supabase
+    .from("memberships")
+    .select("id, packages(type)")
+    .eq("id", freeze.membership_id)
+    .eq("gym_id", userData!.gym_id)
+    .single();
+  if (!msWithPkg || (msWithPkg.packages as any)?.type !== "membership") {
+    redirect(`/dashboard/members/${memberId}?error=${encodeURIComponent("Day passes and trials cannot be frozen")}`);
+  }
 
   const today = todayIST();
   const isActiveNow = freeze.start_date <= today && freeze.end_date >= today;

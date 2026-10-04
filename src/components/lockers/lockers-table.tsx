@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import { PopoverMenu } from "@/components/ui/popover-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   issueLockerKey,
   returnLockerKey,
@@ -136,8 +137,13 @@ export function LockersTable({
     return true;
   };
 
+  // native confirms are suppressed in iOS PWAs — the return confirm is a
+  // real dialog; askReturn opens it, doReturn executes
+  const [confirmReturn, setConfirmReturn] = useState<KeyRow | null>(null);
+  const askReturn = (k: KeyRow) => setConfirmReturn(k);
+
   const doReturn = async (k: KeyRow) => {
-    if (!window.confirm(`Return ${k.keyNumber}?`)) return;
+    setConfirmReturn(null);
     const ok = await runAction(returnLockerKey.bind(null, k.id), new FormData());
     if (!ok) return;
     patchKey(k.id, { status: "available", memberId: null, memberName: null, memberPhone: null, issuedAt: null, attention: false });
@@ -311,7 +317,7 @@ export function LockersTable({
                     onIssue={() => setIssueFor(k)}
                     onTransfer={() => setTransferFor(k)}
                     onManage={() => setDetailFor(k)}
-                    onReturn={doReturn}
+                    onReturn={askReturn}
                     onAttention={doAttention}
                   />
                 </div>
@@ -325,6 +331,15 @@ export function LockersTable({
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={!!confirmReturn}
+        title={`Return ${confirmReturn?.keyNumber ?? ""}?`}
+        body="The key becomes available for the next member."
+        confirmLabel="Return key"
+        onConfirm={() => confirmReturn && doReturn(confirmReturn)}
+        onCancel={() => setConfirmReturn(null)}
+      />
 
       {/* Issue modal */}
       {issueFor && (
@@ -362,7 +377,7 @@ export function LockersTable({
             setDetailFor(null);
             setIssueFor(detailFor);
           }}
-          onReturn={doReturn}
+          onReturn={askReturn}
           onAttention={doAttention}
         />
       )}
@@ -393,7 +408,7 @@ function KeyActions({
   onIssue: () => void;
   onTransfer: () => void;
   onManage: () => void;
-  onReturn: (k: KeyRow) => Promise<void>;
+  onReturn: (k: KeyRow) => void;
   onAttention: (k: KeyRow, attention: boolean) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -435,7 +450,7 @@ function KeyActions({
       <button
         type="button"
         disabled={busy}
-        onClick={() => run(() => onReturn(k))}
+        onClick={() => onReturn(k)}
         className="flex-1 rounded-lg bg-zinc-900 py-2 text-xs font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50"
       >
         {busy ? "Returning…" : "Return"}
@@ -460,7 +475,7 @@ function KeyActions({
       >
         <div className="py-1">
           {k.attention && k.status === "issued" && (
-            <button type="button" onClick={() => run(() => onReturn(k))} className={item}>Return key</button>
+            <button type="button" data-popover-keep onClick={() => onReturn(k)} className={item}>Return key</button>
           )}
           {k.attention && k.status === "available" && (
             <button type="button" onClick={onIssue} className={item}>Issue key…</button>
@@ -495,7 +510,7 @@ function KeyDetailModal({
   onClose: () => void;
   onTransfer: () => void;
   onIssue: () => void;
-  onReturn: (k: KeyRow) => Promise<void>;
+  onReturn: (k: KeyRow) => void;
   onAttention: (k: KeyRow, attention: boolean) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -552,7 +567,7 @@ function KeyDetailModal({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => run(() => onReturn(k))}
+                onClick={() => onReturn(k)}
                 className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50"
               >
                 {busy ? "Returning…" : "Return Key"}

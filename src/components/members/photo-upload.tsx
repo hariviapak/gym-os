@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { CameraCapture } from "@/components/members/camera-capture";
@@ -148,8 +149,10 @@ export function PhotoUpload({
     uploadInputRef.current?.click();
   };
 
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
   const removePhoto = async () => {
-    if (!window.confirm("Remove this profile photo?")) return;
+    setConfirmRemove(false);
     setMenuOpen(false);
     setError(null);
     setBusy("removing");
@@ -266,7 +269,7 @@ export function PhotoUpload({
               {canDelete && photoUrl && (
                 <button
                   type="button"
-                  onClick={removePhoto}
+                  onClick={() => setConfirmRemove(true)}
                   className="w-full rounded-lg py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
                 >
                   Remove Photo
@@ -316,6 +319,16 @@ export function PhotoUpload({
           onConfirm={confirmCrop}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmRemove}
+        title="Remove this profile photo?"
+        body="The stored image will be deleted. You can always take a new one."
+        confirmLabel="Remove photo"
+        danger
+        onConfirm={() => removePhoto()}
+        onCancel={() => setConfirmRemove(false)}
+      />
     </div>
   );
 }

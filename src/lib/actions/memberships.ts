@@ -89,8 +89,13 @@ export async function renewMembership(formData: FormData) {
   }
 
   const startDate = new Date(startDateStr);
+// Day passes and trials count the start day as day 1 (a "1 Day" pass
+  // bought today ends today). Regular memberships keep the same-date-next-
+  // period convention (start + duration).
+  const accessDays =
+    pkg.type === "day_pass" || pkg.type === "trial" ? pkg.duration_days - 1 : pkg.duration_days;
   const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + pkg.duration_days);
+  endDate.setDate(endDate.getDate() + accessDays);
 
   const { data: settings } = await supabase
     .from("gym_settings")
