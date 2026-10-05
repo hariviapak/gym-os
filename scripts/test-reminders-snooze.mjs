@@ -37,7 +37,8 @@ const { data: adminUser } = await db.from("users").select("id").eq("email", EMAI
 const { data: pkg } = await db.from("packages").select("id").eq("gym_id", GYM_ID).eq("type", "membership").limit(1).maybeSingle();
 
 // ---- setup ----
-const { data: orphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).like("first_name", "%etest Pending");
+const TEST_FIRST_NAMES = ["Snoozetest", "Gaptest", "Longexpired", "Recentexpired"];
+const { data: orphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).in("first_name", TEST_FIRST_NAMES);
 for (const o of orphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
 
 async function makeMember(first, { paymentStatus = "partial", endOffset = 10, startOffset = -20, contacts = [] } = {}) {
