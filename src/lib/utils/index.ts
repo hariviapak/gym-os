@@ -21,25 +21,42 @@ export function monthStartIST(): string {
   return new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
+// All displayed dates/times are anchored to IST and calendar dates are
+// formatted as written — output is identical on the server (UTC), on Indian
+// clients, and on clients in any other timezone. Without this, SSR text and
+// client hydration text differ (React #418) and Vercel's UTC functions show
+// times 5.5 hours behind IST.
+const CAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 export function formatDate(date: string | Date | null): string {
   if (!date) return "—";
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = typeof date === "string" && CAL_DATE.test(date)
+    ? new Date(`${date}T00:00:00+05:30`)
+    : typeof date === "string"
+      ? new Date(date)
+      : date;
   return d.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Kolkata",
   });
 }
 
 export function formatDateTime(date: string | Date | null): string {
   if (!date) return "—";
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = typeof date === "string" && CAL_DATE.test(date)
+    ? new Date(`${date}T00:00:00+05:30`)
+    : typeof date === "string"
+      ? new Date(date)
+      : date;
   return d.toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Kolkata",
   });
 }
 
@@ -68,11 +85,14 @@ export function daysBetween(start: string | Date, end: string | Date): number {
 }
 
 export function daysUntil(date: string | Date): number {
-  const target = typeof date === "string" ? new Date(date) : date;
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  target.setHours(0, 0, 0, 0);
-  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  // IST-anchored calendar-day difference — identical on UTC servers and IST
+  // clients, and never returns -0 for plans that ended yesterday.
+  const targetStr = typeof date === "string"
+    ? date.slice(0, 10)
+    : date.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const target = new Date(`${targetStr}T00:00:00+05:30`).getTime();
+  const now = new Date(`${todayIST()}T00:00:00+05:30`).getTime();
+  return Math.round((target - now) / 86400000);
 }
 
 export function fullName(member: {

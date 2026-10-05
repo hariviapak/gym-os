@@ -161,27 +161,32 @@ export function RenewalModal({
               <div className="mb-4 rounded-lg bg-blue-50 px-4 py-2 text-sm">
                 {pkg ? (
                   relevantPlan ? (
-                    <>
-                      <span className="text-blue-600">
-                        Current {relevantPlan.serviceType === "swimming" ? "Swim" : relevantPlan.serviceType === "both" ? "Gym+Swim" : "Gym"}:{" "}
-                      </span>
-                      <span className="font-medium text-blue-900">{relevantPlan.name}</span>
-                      <span className="ml-2 text-blue-500">
-                        · ends {formatDate(relevantPlan.endDate)}
-                        {relevantPlan.daysLeft < 0
-                          ? " (expired)"
-                          : relevantPlan.daysLeft <= 7
-                            ? ` (${relevantPlan.daysLeft}d left)`
-                            : ""}
-                      </span>
-                      {pkg.type === "membership" && relevantPlan.serviceType === pkg.service_type && (
-                        <span className="ml-1 text-blue-400">— renewal queues after it</span>
-                      )}
-                      {pkg.type !== "membership" && <span className="ml-1 text-blue-400">— starts today</span>}
-                      {pkg.type === "membership" && relevantPlan.serviceType !== pkg.service_type && (
-                        <span className="ml-1 text-blue-400">— add-on, starts today</span>
-                      )}
-                    </>
+                    (() => {
+                      // running vs expired current plan — date-based, because
+                      // daysUntil is -0 for plans that ended yesterday
+                      const planRunning = relevantPlan.endDate >= todayStr;
+                      const svc = relevantPlan.serviceType === "swimming" ? "Swim" : relevantPlan.serviceType === "both" ? "Gym+Swim" : "Gym";
+                      return (
+                        <>
+                          <span className="text-blue-600">{planRunning ? "Current" : "Last"} {svc}: </span>
+                          <span className="font-medium text-blue-900">{relevantPlan.name}</span>
+                          <span className="ml-2 text-blue-500">
+                            · {planRunning ? "ends" : "ended"} {formatDate(relevantPlan.endDate)}
+                            {planRunning && relevantPlan.daysLeft <= 7 ? ` (${relevantPlan.daysLeft}d left)` : ""}
+                          </span>
+                          {pkg.type === "membership" && relevantPlan.serviceType === pkg.service_type && planRunning && (
+                            <span className="ml-1 text-blue-400">— renewal queues after it</span>
+                          )}
+                          {pkg.type === "membership" && relevantPlan.serviceType === pkg.service_type && !planRunning && (
+                            <span className="ml-1 text-blue-400">— expired, new plan starts today</span>
+                          )}
+                          {pkg.type !== "membership" && <span className="ml-1 text-blue-400">— starts today</span>}
+                          {pkg.type === "membership" && relevantPlan.serviceType !== pkg.service_type && (
+                            <span className="ml-1 text-blue-400">— add-on, starts today</span>
+                          )}
+                        </>
+                      );
+                    })()
                   ) : (
                     <span className="text-blue-600">
                       No current {pkg.service_type === "swimming" ? "swim" : pkg.service_type === "both" ? "combo" : "gym"} plan —

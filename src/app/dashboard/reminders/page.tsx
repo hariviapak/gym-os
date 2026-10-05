@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrency, formatDate, daysUntil, todayIST, addDaysIST, timeAgo } from "@/lib/utils";
+import { formatCurrency, formatDate, todayIST, addDaysIST, timeAgo } from "@/lib/utils";
 import Link from "next/link";
 import { WhatsAppButton } from "@/components/members/whatsapp-button";
 import { markGiftKitDelivered } from "@/lib/actions/gift-kit";
@@ -90,19 +90,16 @@ export default async function RemindersPage() {
     .filter((m: any) => new Date(m.date_of_birth).getMonth() === currentMonth)
     .sort((a: any, b: any) => new Date(a.date_of_birth).getDate() - new Date(b.date_of_birth).getDate());
 
-  const expiredAll = expiringList.filter((m: any) => daysUntil(m.end_date) < 0);
+  // date-based buckets — daysUntil() returns -0 for plans that ended
+  // yesterday, which silently fails every < 0 check
+  const todayStr = todayIST();
+  const expiredAll = expiringList.filter((m: any) => m.end_date < todayStr);
   // long-expired (60+ days) collapse behind a quiet link; recent stay visible
-  const expiredRecent = expiredAll.filter((m: any) => daysUntil(m.end_date) >= -60);
-  const expiredLong = expiredAll.filter((m: any) => daysUntil(m.end_date) < -60);
+  const expiredRecent = expiredAll.filter((m: any) => m.end_date >= addDaysIST(-60));
+  const expiredLong = expiredAll.filter((m: any) => m.end_date < addDaysIST(-60));
   const expired = expiredRecent;
-  const thisWeek = expiringList.filter((m: any) => {
-    const d = daysUntil(m.end_date);
-    return d >= 0 && d <= 7;
-  });
-  const thisMonth = expiringList.filter((m: any) => {
-    const d = daysUntil(m.end_date);
-    return d > 7 && d <= 30;
-  });
+  const thisWeek = expiringList.filter((m: any) => m.end_date >= todayStr && m.end_date <= addDaysIST(7));
+  const thisMonth = expiringList.filter((m: any) => m.end_date > addDaysIST(7) && m.end_date <= addDaysIST(30));
 
   // Fetch contact events for ALL relevant members
   const allMemberIds = [

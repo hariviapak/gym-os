@@ -352,15 +352,15 @@ export default async function MemberProfilePage({
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="whitespace-nowrap text-sm">
-                    {isUpcoming ? (
-                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
-                        starts {formatDate(m.start_date)}
-                      </span>
-                    ) : m.status === "active" ? (
-                      <span className={msDays < 0 ? "text-red-600" : msDays <= 3 ? "text-orange-600" : "text-green-600"}>
-                        {msDays < 0 ? "expired" : `${msDays}d left`}
-                      </span>
-                    ) : (
+                  {isUpcoming ? (
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
+                      starts {formatDate(m.start_date)}
+                    </span>
+                  ) : m.status === "active" ? (
+                    <span className={m.end_date < todayStr ? "text-red-600" : msDays <= 3 ? "text-orange-600" : "text-green-600"}>
+                      {m.end_date < todayStr ? "expired" : `${msDays}d left`}
+                    </span>
+                  ) : (
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(m.status)}`}>{m.status}</span>
                     )}
                   </span>
