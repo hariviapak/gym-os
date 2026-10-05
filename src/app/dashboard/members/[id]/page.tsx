@@ -269,7 +269,15 @@ export default async function MemberProfilePage({
                 Freeze
               </Link>
             )}
-            {canManage && <MoreMenu memberId={member.id} memberStatus={member.status} memberName={fullName(member)} />}
+            {canManage && (
+              <MoreMenu
+                memberId={member.id}
+                memberStatus={member.status}
+                memberName={fullName(member)}
+                membershipCount={(memberships ?? []).length}
+                paymentCount={(payments ?? []).length}
+              />
+            )}
           </div>
         </div>
       </div>

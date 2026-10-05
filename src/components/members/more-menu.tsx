@@ -10,10 +10,14 @@ export function MoreMenu({
   memberId,
   memberStatus,
   memberName,
+  membershipCount = 0,
+  paymentCount = 0,
 }: {
   memberId: string;
   memberStatus: string;
   memberName: string;
+  membershipCount?: number;
+  paymentCount?: number;
 }) {
   const item = "block w-full px-3 py-1.5 text-left text-xs text-zinc-700 transition hover:bg-zinc-50";
 
@@ -65,7 +69,12 @@ export function MoreMenu({
             )}
             <div className="my-1 border-t border-zinc-100" />
             <div className="px-3 py-1">
-              <DeleteMemberButton memberId={memberId} memberName={memberName} />
+              <DeleteMemberButton
+                memberId={memberId}
+                memberName={memberName}
+                membershipCount={membershipCount}
+                paymentCount={paymentCount}
+              />
             </div>
         </div>
       </PopoverMenu>
