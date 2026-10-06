@@ -18,7 +18,25 @@ const GYM_ID = "00000000-0000-0000-0000-000000000001";
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "admin@792fitness.com";
 const PASSWORD = "Admin@792Fit";
-const MEMBER_ID = "a45503b3-722a-4abb-bb74-b2628cf3d9c0";
+
+// self-provision a member with history for the profile-menu sections (no
+// demo-data dependency); cleaned up at the end
+await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+const { data: menuOrphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Popmenu");
+for (const o of menuOrphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
+const { data: pkg } = await db.from("packages").select("id").eq("gym_id", GYM_ID).eq("type", "membership").limit(1).maybeSingle();
+const { data: popMember } = await db
+  .from("members")
+  .insert({ gym_id: GYM_ID, first_name: "Popmenu", last_name: "Test", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
+  .select()
+  .single();
+const { data: popMs } = await db.from("memberships").insert({
+  gym_id: GYM_ID, member_id: popMember.id, package_id: pkg.id,
+  start_date: "2026-09-05", end_date: "2026-11-04", status: "active", payment_status: "paid",
+  amount: 3000, gst_amount: 0, total_amount: 3000, amount_paid: 3000,
+}).select().single();
+await db.from("payments").insert({ gym_id: GYM_ID, member_id: popMember.id, membership_id: popMs.id, amount: 3000, mode: "upi", payment_date: "2026-09-05", reference_note: "POPOVER-E2E" });
+const MEMBER_ID = popMember.id;
 
 const results = [];
 const check = (name, ok, detail = "") => {
@@ -191,5 +209,6 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
 }
 
 const failed = results.filter((r) => !r.ok).length;
+await db.rpc("hard_delete_member", { p_member_id: MEMBER_ID });
 console.log(`\n${failed ? `FAILED: ${failed}/${results.length}` : `ALL PASS: ${results.length}/${results.length}`}`);
 process.exit(failed ? 1 : 0);

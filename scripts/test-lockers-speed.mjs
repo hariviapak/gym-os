@@ -16,7 +16,13 @@ const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
 const key = env.match(/NEXT_PUBLIC_SUPABASE_ANON_KEY=(.*)/)[1].trim();
 const db = createClient(url, key, { auth: { persistSession: false } });
 await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
-const { data: member } = await db.from("members").select("id, first_name").eq("gym_id", GYM_ID).eq("status", "active").limit(1).maybeSingle();
+const { data: lsOrphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Speedseed");
+for (const o of lsOrphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
+const { data: member } = await db
+  .from("members")
+  .insert({ gym_id: GYM_ID, first_name: "Speedseed", last_name: "Test", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
+  .select("id, first_name")
+  .single();
 
 // a throwaway key for timing
 await db.from("locker_keys").delete().eq("gym_id", GYM_ID).eq("key_number", "TEST-TIMING-1");
@@ -106,6 +112,7 @@ check("audit rows written", (audits ?? 0) >= 3, `${audits} rows`);
 // cleanup
 await db.from("locker_key_logs").update({ returned_at: new Date().toISOString() }).eq("locker_key_id", tk.id).is("returned_at", null);
 await db.from("locker_keys").delete().eq("id", tk.id);
+await db.rpc("hard_delete_member", { p_member_id: member.id });
 await browser.close();
 
 const failed = results.filter((r) => !r.ok).length;

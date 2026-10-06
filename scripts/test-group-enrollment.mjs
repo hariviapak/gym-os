@@ -33,34 +33,22 @@ if (!pkg) fail("package not found");
 const totalAmount = Number(pkg.amount);
 ok(`package: ${pkg.name} ₹${totalAmount} ${pkg.duration_days}d service=${pkg.service_type} group=${pkg.is_group_package}`);
 
-// --- existing member to include (Suresh) ---
-const { data: suresh } = await supa.from("members").select("id, first_name").eq("gym_id", gymId).ilike("first_name", "Suresh").limit(1).maybeSingle();
-if (!suresh) fail("Suresh not found");
-ok(`existing participant: ${suresh.first_name} (${suresh.id.slice(0, 8)})`);
+// --- self-provisioned throwaway "existing member" (no demo-data dependency) ---
+const { data: existingStrays } = await supa.from("members").select("id").eq("gym_id", gymId).in("first_name", ["Grp", "Kidso", "Grpexist"]);
+for (const s of existingStrays ?? []) await supa.rpc("hard_delete_member", { p_member_id: s.id });
+if (existingStrays?.length) console.log("   pre-clean: removed " + existingStrays.length + " stray test members");
+const { data: suresh } = await supa.from("members").insert({
+  gym_id: gymId, first_name: "Grpexist", last_name: "Test",
+  phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active",
+}).select("id, first_name").single();
+if (!suresh) fail("could not create throwaway existing member");
+ok(`existing participant: ${suresh.first_name} (${suresh.id.slice(0, 8)}) — self-provisioned`);
 
 // ============ PRE-CLEAN (from prior failed runs) ============
-const hourAgo = new Date(Date.now() - 3600e3).toISOString();
-const { data: strays } = await supa.from("members").select("id").eq("gym_id", gymId).in("first_name", ["Grp", "Kidso"]);
-for (const s of strays ?? []) await supa.rpc("hard_delete_member", { p_member_id: s.id });
-if (strays?.length) console.log("   pre-clean: removed " + strays.length + " stray test members");
-const { data: sureshStray } = await supa.from("memberships").select("id").eq("member_id", suresh.id).eq("package_id", pkg.id).gte("created_at", hourAgo);
-for (const sm of sureshStray ?? []) {
-  const { data: sp } = await supa.from("payments").select("id, receipt_id").eq("membership_id", sm.id);
-  for (const p of sp ?? []) {
-    if (p.receipt_id) await supa.from("receipts").delete().eq("id", p.receipt_id);
-    await supa.from("payments").delete().eq("id", p.id);
-  }
-  await supa.from("gift_kit_tasks").delete().eq("member_id", suresh.id).gte("created_at", hourAgo);
-  await supa.from("memberships").delete().eq("id", sm.id);
-  console.log("   pre-clean: removed stray Suresh Family Annual " + sm.id.slice(0, 8));
-}
 await supa.from("member_groups").delete().eq("gym_id", gymId).ilike("name", "Grptest & Family");
 const { count: preCount } = await supa.from("memberships").select("id", { count: "exact", head: true }).eq("package_id", pkg.id);
 if ((preCount ?? 0) !== 0) fail(`pre-clean incomplete: ${preCount} Family Annual (3) memberships remain`);
 ok("pre-clean complete (0 stray memberships)");
-// NOTE: direct table deletes are RLS-guarded; hard_delete_member (RPC) is the
-// supported path for whole members — stray memberships of kept members are
-// cleaned via psql (service role) before this test runs.
 
 // ============ THE FLOW (mirrors enrollMember exactly) ============
 // primary = new member; quick-add #1 SHARES THE PRIMARY'S PHONE (old bug trigger)
@@ -242,9 +230,8 @@ newMs.forEach(m => { perMember[m.member_id] = (perMember[m.member_id] ?? 0) + 1;
 if (Object.values(perMember).some(n => n > 1)) fail("a member received 2+ memberships (double-booking!)");
 ok("no member double-booked (one membership each)");
 
-// ============ CLEANUP (ONLY members this test created — never existing participants!) ============
-// The existing participant (Suresh) must NEVER be hard-deleted here.
-const cleanupIds = [...new Set([member.id, ...groupEntries.filter(e => e.id && e.id !== suresh.id).map(e => e.id)])];
+// ============ CLEANUP (all participants are self-provisioned this run) ============
+const cleanupIds = [...new Set([member.id, ...groupEntries.filter(e => e.id).map(e => e.id)])];
 for (const mid of cleanupIds) {
   const { data: deleted, error: delErr } = await supa.rpc("hard_delete_member", { p_member_id: mid });
   if (delErr || !deleted) console.log(`   cleanup warn ${mid.slice(0, 6)}: ${delErr?.message ?? "not deleted"}`);

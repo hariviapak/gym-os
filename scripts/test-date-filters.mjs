@@ -5,6 +5,18 @@
 // - values survive reload (URL-derived display)
 // Usage: node scripts/test-date-filters.mjs [baseUrl]
 import { chromium } from "playwright";
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "fs";
+
+const envKeys = Object.fromEntries(
+  readFileSync(".env.local", "utf8")
+    .split("\n")
+    .filter((l) => l.includes("="))
+    .map((l) => [l.split("=")[0], l.split("=").slice(1).join("=")])
+);
+const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+  auth: { persistSession: false },
+});
 
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "admin@792fitness.com";
@@ -27,6 +39,18 @@ async function login(page) {
 
 // ---------- payments ----------
 console.log("\n--- payments page (390px) ---");
+// self-provision a payment so row-level assertions hold on any gym state
+await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+const GYM_ID = "00000000-0000-0000-0000-000000000001";
+const { data: dfOrphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Datefilter");
+for (const o of dfOrphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
+const { data: dfMember } = await db
+  .from("members")
+  .insert({ gym_id: GYM_ID, first_name: "Datefilter", last_name: "Test", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
+  .select()
+  .single();
+await db.from("payments").insert({ gym_id: GYM_ID, member_id: dfMember.id, amount: 500, mode: "upi", payment_date: "2026-09-10", reference_note: "DATEFILTER-E2E" });
+
 {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await login(page);
@@ -65,7 +89,7 @@ console.log("\n--- payments page (390px) ---");
   await page.waitForURL(/^(?!.*to=)/, { timeout: 15000 });
   await page.waitForTimeout(400);
   const toAny = (await page.locator("button", { hasText: "ToAny" }).count()) === 1;
-  const rowsBack = await page.evaluate(() => document.body.innerText.includes("Showing") || document.body.innerText.includes("Hari Viapak Garg"));
+  const rowsBack = await page.evaluate(() => document.body.innerText.includes("Datefilter") || document.body.innerText.includes("DATEFILTER-E2E"));
   check("clear resets pill, list returns", toAny && rowsBack);
 
   // set both via URL → reload → pills still show values (iOS-blank bug fixed)
@@ -101,6 +125,7 @@ console.log("\n--- audit log (390px) ---");
 }
 
 await browser.close();
+await db.rpc("hard_delete_member", { p_member_id: dfMember.id });
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? "FAILURES: " + failed : "ALL PASS"}: ${results.filter((r) => r.ok).length}/${results.length}`);

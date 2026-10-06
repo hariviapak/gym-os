@@ -44,22 +44,25 @@ const { error: dupErr } = await supa.from("locker_keys").insert({ gym_id: gymId,
 if (!dupErr) fail("duplicate key creation should fail");
 ok("duplicate key rejected (unique constraint)");
 
-// ---- pick a member (Suresh) ----
-const { data: suresh } = await supa.from("members").select("id, first_name").eq("gym_id", gymId).ilike("first_name", "Suresh").limit(1).maybeSingle();
-if (!suresh) fail("Suresh not found");
+// ---- self-provisioned throwaway members (no demo-data dependency) ----
+const { data: priorMembers } = await supa.from("members").select("id").eq("gym_id", gymId).eq("first_name", "Locktest");
+for (const s of priorMembers ?? []) await supa.rpc("hard_delete_member", { p_member_id: s.id });
+const throwPhone = () => String(1000000000 + Math.floor(Math.random() * 8999999999));
+const { data: lockA } = await supa.from("members").insert({ gym_id: gymId, first_name: "Locktest", last_name: "A", phone: throwPhone(), status: "active" }).select("id, first_name").single();
+const { data: lockB } = await supa.from("members").insert({ gym_id: gymId, first_name: "Locktest", last_name: "B", phone: throwPhone(), status: "active" }).select("id, first_name").single();
+if (!lockA || !lockB) fail("could not create throwaway members");
 
 // ---- issue (mirrors issueLockerKey) ----
 const { data: key101 } = await supa.from("locker_keys").select("id, key_number, status").eq("gym_id", gymId).eq("key_number", "TEST-101").single();
-await supa.from("locker_keys").update({ status: "issued", current_member_id: suresh.id, issued_at: new Date().toISOString() }).eq("id", key101.id);
-await supa.from("locker_key_logs").insert({ gym_id: gymId, locker_key_id: key101.id, member_id: suresh.id, key_number: key101.key_number, issued_by: me.id });
-ok(`issued TEST-101 to ${suresh.first_name}`);
+await supa.from("locker_keys").update({ status: "issued", current_member_id: lockA.id, issued_at: new Date().toISOString() }).eq("id", key101.id);
+await supa.from("locker_key_logs").insert({ gym_id: gymId, locker_key_id: key101.id, member_id: lockA.id, key_number: key101.key_number, issued_by: me.id });
+ok(`issued TEST-101 to ${lockA.first_name} ${lockA.last_name}`);
 
 // ---- transfer (mirrors transferLockerKey) ----
-const { data: priya } = await supa.from("members").select("id, first_name").eq("gym_id", gymId).ilike("first_name", "Priya").limit(1).maybeSingle();
 await supa.from("locker_key_logs").update({ returned_at: new Date().toISOString(), returned_by: me.id, notes: "Transferred" }).eq("locker_key_id", key101.id).is("returned_at", null);
-await supa.from("locker_keys").update({ current_member_id: priya.id, issued_at: new Date().toISOString() }).eq("id", key101.id);
-await supa.from("locker_key_logs").insert({ gym_id: gymId, locker_key_id: key101.id, member_id: priya.id, key_number: key101.key_number, issued_by: me.id, notes: "Received via transfer" });
-ok(`transferred TEST-101 → ${priya.first_name}`);
+await supa.from("locker_keys").update({ current_member_id: lockB.id, issued_at: new Date().toISOString() }).eq("id", key101.id);
+await supa.from("locker_key_logs").insert({ gym_id: gymId, locker_key_id: key101.id, member_id: lockB.id, key_number: key101.key_number, issued_by: me.id, notes: "Received via transfer" });
+ok(`transferred TEST-101 → ${lockB.first_name} ${lockB.last_name}`);
 
 // ---- flag attention (manual only) ----
 await supa.from("locker_keys").update({ attention: true }).eq("id", key101.id);
@@ -68,7 +71,7 @@ ok("flagged TEST-101 for attention");
 // ---- verifications ----
 const { data: k1 } = await supa.from("locker_keys").select("status, attention, current_member_id").eq("id", key101.id).single();
 if (k1.status !== "issued") fail("status should be issued");
-if (k1.current_member_id !== priya.id) fail("holder should be Priya");
+if (k1.current_member_id !== lockB.id) fail("holder should be Locktest B");
 if (!k1.attention) fail("attention flag lost");
 
 const { data: logs101 } = await supa.from("locker_key_logs").select("member_id, returned_at, notes").eq("locker_key_id", key101.id).order("issued_at");
@@ -93,7 +96,7 @@ ok("renamed to TEST-101R / locker 42");
 
 // removal of an ISSUED key must be blocked by the action — simulate the guard
 const { data: key102 } = await supa.from("locker_keys").select("id, key_number").eq("gym_id", gymId).eq("key_number", "TEST-102").single();
-await supa.from("locker_keys").update({ status: "issued", current_member_id: priya.id, issued_at: new Date().toISOString() }).eq("id", key102.id);
+await supa.from("locker_keys").update({ status: "issued", current_member_id: lockB.id, issued_at: new Date().toISOString() }).eq("id", key102.id);
 const { data: k102 } = await supa.from("locker_keys").select("status").eq("id", key102.id).single();
 if (k102.status !== "available") ok("issued key detected — action would refuse removal (guard)");
 
@@ -108,5 +111,6 @@ for (const kn of ["TEST-101R", "TEST-102", "TEST-103", "TEST-104", "TEST-105"]) 
   await supa.from("locker_keys").delete().eq("id", key.id);
 }
 const { count: after } = await supa.from("locker_keys").select("id", { count: "exact", head: true }).eq("gym_id", gymId).like("key_number", "TEST-%");
-console.log(`\ncleanup: ${after === 0 ? "all test keys removed" : "LEFTOVERS: " + after}`);
+for (const s of [lockA, lockB]) await supa.rpc("hard_delete_member", { p_member_id: s.id });
+console.log(`\ncleanup: ${after === 0 ? "all test keys + members removed" : "LEFTOVERS: " + after}`);
 console.log("\nALL LOCKER LIFECYCLE TESTS PASSED");

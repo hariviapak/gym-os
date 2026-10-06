@@ -2,22 +2,44 @@
 // reports layout issues (overflow, clipped text, console/network errors).
 // Usage: node scripts/ui-audit.mjs [baseUrl]
 import { chromium } from "playwright";
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "fs";
 
 const BASE = process.argv[2] || "https://gymos.sakhi.app";
 const EMAIL = "admin@792fitness.com";
 const PASSWORD = "Admin@792Fit";
-const MEMBER_ID = "a45503b3-722a-4abb-bb74-b2628cf3d9c0";
+
+// Member-scoped routes need a real member id — fetch one at runtime. On an
+// empty gym (fresh install / post-cleanup) those routes are skipped.
+const envKeys = Object.fromEntries(
+  readFileSync(".env.local", "utf8")
+    .split("\n")
+    .filter((l) => l.includes("="))
+    .map((l) => [l.split("=")[0], l.split("=").slice(1).join("=")])
+);
+const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+  auth: { persistSession: false },
+});
+await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+const { data: firstMember } = await db.from("members").select("id").limit(1).maybeSingle();
+const MEMBER_ID = firstMember?.id ?? null;
+const MEMBER_ROUTES = MEMBER_ID
+  ? [
+      { path: `/dashboard/members/${MEMBER_ID}`, name: "Member profile" },
+      { path: `/dashboard/members/${MEMBER_ID}/edit`, name: "Edit member" },
+      { path: `/dashboard/members/${MEMBER_ID}/sign-terms`, name: "Sign terms" },
+      { path: `/dashboard/members/${MEMBER_ID}/signed-documents`, name: "Signed documents" },
+      { path: `/print/member-profile/${MEMBER_ID}`, name: "Print profile (screen preview)" },
+    ]
+  : [];
+console.log(MEMBER_ID ? `member routes: on (${MEMBER_ID.slice(0, 8)}…)` : "member routes: skipped (no members — empty gym)");
 
 const ROUTES = [
   { path: "/dashboard", name: "Dashboard" },
   { path: "/dashboard/members", name: "Members list" },
   { path: "/dashboard/members?filter=week", name: "Members expiring" },
   { path: "/dashboard/members/new", name: "New enrollment" },
-  { path: `/dashboard/members/${MEMBER_ID}`, name: "Member profile" },
-  { path: `/dashboard/members/${MEMBER_ID}/edit`, name: "Edit member" },
-  { path: `/dashboard/members/${MEMBER_ID}/sign-terms`, name: "Sign terms" },
-  { path: `/dashboard/members/${MEMBER_ID}/signed-documents`, name: "Signed documents" },
-  { path: `/print/member-profile/${MEMBER_ID}`, name: "Print profile (screen preview)" },
+  ...MEMBER_ROUTES,
   { path: "/dashboard/packages", name: "Packages (list)" },
   { path: "/dashboard/packages?view=grid", name: "Packages (grid)" },
   { path: "/dashboard/payments", name: "Payments" },

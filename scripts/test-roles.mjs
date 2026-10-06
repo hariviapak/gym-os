@@ -96,10 +96,17 @@ console.log("\n--- manager role ---");
   // member profile: staff tools visible (canManage)
   const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
   await anon.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
-  const { data: member } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("status", "active").limit(1).maybeSingle();
+  const { data: rpOrphans } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Roleseed2");
+  for (const o of rpOrphans ?? []) await anon.rpc("hard_delete_member", { p_member_id: o.id });
+  const { data: member } = await anon
+    .from("members")
+    .insert({ gym_id: GYM_ID, first_name: "Roleseed2", last_name: "Test", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
+    .select("id")
+    .single();
   await page.goto(`${BASE}/dashboard/members/${member.id}`, { waitUntil: "networkidle" });
   const profile = await page.evaluate(() => document.body.innerText);
   check("manager sees profile staff tools", /staff tools/i.test(profile));
+  await anon.rpc("hard_delete_member", { p_member_id: member.id });
 
   // mobile More drawer shows Audit for manager (matches desktop + RLS)
   const mpage = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -162,10 +169,17 @@ console.log("\n--- staff role ---");
   // member profile: no staff tools (canManage = manager+)
   const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
   await anon.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
-  const { data: member } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("status", "active").limit(1).maybeSingle();
+  const { data: rsOrphans } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Roleseed3");
+  for (const o of rsOrphans ?? []) await anon.rpc("hard_delete_member", { p_member_id: o.id });
+  const { data: member } = await anon
+    .from("members")
+    .insert({ gym_id: GYM_ID, first_name: "Roleseed3", last_name: "Test", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
+    .select("id")
+    .single();
   await page.goto(`${BASE}/dashboard/members/${member.id}`, { waitUntil: "networkidle" });
   const profile = await page.evaluate(() => document.body.innerText);
   check("staff does NOT see profile staff tools", !/Staff tools/.test(profile));
+  await anon.rpc("hard_delete_member", { p_member_id: member.id });
 
   // mobile bottom-nav More drawer: no Payments/Expenses/Reports
   const mpage = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -191,7 +205,13 @@ console.log("\n--- front-line locker cycle (staff + trainer) ---");
   const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
   await anon.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
   await anon.from("locker_keys").delete().eq("gym_id", GYM_ID).eq("key_number", "TEST-ROLES-1");
-  const { data: someMember } = await anon.from("members").select("id, first_name").eq("gym_id", GYM_ID).eq("status", "active").limit(1).maybeSingle();
+  const { data: roOrphans } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Roleseed");
+  for (const o of roOrphans ?? []) await anon.rpc("hard_delete_member", { p_member_id: o.id });
+  const { data: someMember } = await anon
+    .from("members")
+    .insert({ gym_id: GYM_ID, first_name: "Roleseed", last_name: "Test", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
+    .select("id, first_name")
+    .single();
   await anon.from("locker_keys").insert({
     gym_id: GYM_ID,
     key_number: "TEST-ROLES-1",
@@ -224,8 +244,9 @@ console.log("\n--- front-line locker cycle (staff + trainer) ---");
   check("DB truth: key available + member cleared", keyAfter?.status === "available" && !keyAfter?.current_member_id);
   await trainerPage.close();
 
-  // cleanup the test key
+  // cleanup the test key + throwaway member
   await anon.from("locker_keys").delete().eq("gym_id", GYM_ID).eq("key_number", "TEST-ROLES-1");
+  await anon.rpc("hard_delete_member", { p_member_id: someMember.id });
 }
 
 await browser.close();

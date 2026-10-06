@@ -38,7 +38,13 @@ const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SU
 });
 const { data: auth } = await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
 const gymId = "00000000-0000-0000-0000-000000000001";
-const { data: member } = await db.from("members").select("id").eq("gym_id", gymId).eq("status", "active").limit(1).maybeSingle();
+const { data: luOrphans } = await db.from("members").select("id").eq("gym_id", gymId).eq("first_name", "Lockuiseed");
+for (const o of luOrphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
+const { data: member } = await db
+  .from("members")
+  .insert({ gym_id: gymId, first_name: "Lockuiseed", last_name: "Test", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
+  .select("id")
+  .single();
 await db.from("locker_keys").delete().eq("gym_id", gymId).eq("key_number", "TEST-UI-900");
 await db.from("locker_keys").insert({
   gym_id: gymId,
@@ -154,6 +160,7 @@ await browser.close();
 // teardown: return + remove the temporary issued key
 await db.from("locker_key_logs").update({ returned_at: new Date().toISOString() }).eq("gym_id", gymId).eq("key_number", "TEST-UI-900").is("returned_at", null);
 await db.from("locker_keys").delete().eq("gym_id", gymId).eq("key_number", "TEST-UI-900");
+await db.rpc("hard_delete_member", { p_member_id: member.id });
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? `FAILED: ${failed}/${results.length}` : `ALL PASS: ${results.length}/${results.length}`}`);

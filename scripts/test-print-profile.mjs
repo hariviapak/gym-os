@@ -21,12 +21,14 @@ const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SU
   auth: { persistSession: false },
 });
 await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+const GYM_ID = "00000000-0000-0000-0000-000000000001";
+const { data: ppOrphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Printseed");
+for (const o of ppOrphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
 const { data: member } = await db
   .from("members")
+  .insert({ gym_id: GYM_ID, first_name: "Printseed", last_name: "Test", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
   .select("id, first_name")
-  .eq("gym_id", "00000000-0000-0000-0000-000000000001")
-  .limit(1)
-  .maybeSingle();
+  .single();
 
 const results = [];
 const check = (name, ok, detail = "") => {
@@ -86,6 +88,7 @@ for (const vp of [
 }
 
 await browser.close();
+await db.rpc("hard_delete_member", { p_member_id: member.id });
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? "FAILURES: " + failed : "ALL PASS"}: ${results.filter((r) => r.ok).length}/${results.length}`);
 process.exit(failed ? 1 : 0);

@@ -2,6 +2,19 @@
 // search/filter → pagination → export respects filters.
 // Usage: node scripts/test-reports.mjs [baseUrl]
 import { chromium } from "playwright";
+import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "fs";
+
+const envKeys = Object.fromEntries(
+  readFileSync(".env.local", "utf8")
+    .split("\n")
+    .filter((l) => l.includes("="))
+    .map((l) => [l.split("=")[0], l.split("=").slice(1).join("=")])
+);
+const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+  auth: { persistSession: false },
+});
+
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "admin@792fitness.com";
 const PASSWORD = "Admin@792Fit";
@@ -11,6 +24,23 @@ const check = (name, ok, detail = "") => {
   results.push({ name, ok });
   console.log(`  ${ok ? "✓" : "✗"} ${name}${detail ? " — " + detail : ""}`);
 };
+
+// self-provision data so row/pagination/export assertions hold on any gym
+await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+const GYM_ID = "00000000-0000-0000-0000-000000000001";
+const istToday = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+const { data: repOrphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Reportseed");
+for (const o of repOrphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
+const { data: repMember } = await db
+  .from("members")
+  .insert({ gym_id: GYM_ID, first_name: "Hari", last_name: "Reportseed", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
+  .select()
+  .single();
+await db.from("payments").insert([
+  { gym_id: GYM_ID, member_id: repMember.id, amount: 100, mode: "cash", payment_date: istToday, reference_note: "REPORT-E2E-CASH" },
+  { gym_id: GYM_ID, member_id: repMember.id, amount: 200, mode: "upi", payment_date: istToday, reference_note: "REPORT-E2E-UPI" },
+  { gym_id: GYM_ID, member_id: repMember.id, amount: 400, mode: "cash", payment_date: "2026-08-15", reference_note: "REPORT-E2E-AUG" },
+]);
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -136,6 +166,7 @@ const fullCsv = await page.evaluate(async () => (await (await fetch("/api/export
 check("full report export has all sections", /Financial/.test(fullCsv) && /Membership/.test(fullCsv) && /Net Profit/.test(fullCsv));
 
 await browser.close();
+await db.rpc("hard_delete_member", { p_member_id: repMember.id });
 const failed = results.filter((r) => !r.ok).length;
 console.log(failed ? `FAILED: ${failed}/${results.length}` : `ALL PASS: ${results.length}/${results.length}`);
 process.exit(failed ? 1 : 0);

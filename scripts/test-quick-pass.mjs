@@ -26,14 +26,15 @@ const db = createClient(sbUrl, sbKey, {
   global: { headers: { Authorization: `Bearer ${auth.session.access_token}` } },
 });
 
-// fixtures
-const { data: memberRows } = await db
+// fixtures — self-provision the "existing member" (no demo-data dependency)
+const qpPhone = String(1000000000 + Math.floor(Math.random() * 8999999999));
+const { data: qpOrphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Qpseed");
+for (const o of qpOrphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
+const { data: existingMember } = await db
   .from("members")
+  .insert({ gym_id: GYM_ID, first_name: "Qpseed", last_name: "Test", phone: qpPhone, status: "active" })
   .select("id, first_name, phone")
-  .eq("gym_id", GYM_ID)
-  .neq("phone", "")
-  .limit(20);
-const existingMember = (memberRows ?? []).find((x) => x.phone && x.phone.replace(/\D/g, "").length >= 10);
+  .single();
 const { data: pkgRow } = await db
   .from("packages")
   .select("id, name, amount, type")
@@ -167,6 +168,7 @@ if (dup) {
 }
 
 await browser.close();
+await db.rpc("hard_delete_member", { p_member_id: existingMember.id });
 const failed = results.filter((r) => !r.ok).length;
 console.log(failed ? `FAILED: ${failed}/${results.length}` : `ALL PASS: ${results.length}/${results.length}`);
 process.exit(failed ? 1 : 0);
