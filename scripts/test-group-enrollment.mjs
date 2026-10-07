@@ -6,6 +6,7 @@
 // note below. Run from the project root: node scripts/test-group-enrollment.mjs
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
+import { adminPassword } from "./lib/test-env.mjs";
 
 const env = Object.fromEntries(
   readFileSync(".env.local", "utf8").split("\n").filter(l => l.includes("=")).map(l => [l.split("=")[0], l.split("=").slice(1).join("=")])
@@ -20,7 +21,7 @@ const fail = (msg) => { console.log("❌ " + msg); process.exit(1); };
 const ok = (msg) => console.log("✓ " + msg);
 
 // --- sign in as admin ---
-const { data: auth, error: authErr } = await supa.auth.signInWithPassword({ email: "792fitness@gmail.com", password: "Admin@792Fit" });
+const { data: auth, error: authErr } = await supa.auth.signInWithPassword({ email: "792fitness@gmail.com", password: adminPassword() });
 if (authErr) fail("auth: " + authErr.message);
 const { data: me } = await supa.from("users").select("gym_id, id, role").eq("id", auth.user.id).single();
 const gymId = me.gym_id;

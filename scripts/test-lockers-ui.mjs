@@ -6,7 +6,7 @@ import { chromium } from "playwright";
 
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "792fitness@gmail.com";
-const PASSWORD = "Admin@792Fit";
+const PASSWORD = adminPassword();
 
 const VIEWPORTS = [
   { w: 320, name: "320px" },
@@ -27,6 +27,7 @@ const check = (name, ok, detail = "") => {
 // (sorted to the end of the grid = the worst case for bottom-row clipping)
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
+import { adminPassword } from "./lib/test-env.mjs";
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")
     .split("\n")

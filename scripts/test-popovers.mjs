@@ -4,6 +4,7 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
+import { adminPassword } from "./lib/test-env.mjs";
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")
     .split("\n")
@@ -17,7 +18,7 @@ const GYM_ID = "00000000-0000-0000-0000-000000000001";
 
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "792fitness@gmail.com";
-const PASSWORD = "Admin@792Fit";
+const PASSWORD = envKeys.ADMIN_PASSWORD || (() => { console.error("Set ADMIN_PASSWORD in .env.local (scripts read the gitignored env, never the repo)"); process.exit(1); })();
 
 // self-provision a member with history for the profile-menu sections (no
 // demo-data dependency); cleaned up at the end
@@ -157,7 +158,7 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
 // cancelling the server action)
 {
   console.log("\n--- More ▾ popover forms (deactivate / reactivate / delete) ---");
-  await db.auth.signInWithPassword({ email: "792fitness@gmail.com", password: "Admin@792Fit" });
+  await db.auth.signInWithPassword({ email: "792fitness@gmail.com", password: adminPassword() });
   const { data: orphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Popform");
   for (const o of orphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
   const phone = String(1000000000 + Math.floor(Math.random() * 8999999999));
@@ -171,7 +172,7 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
   await page.fill('input[name="email"]', "792fitness@gmail.com");
-  await page.fill('input[name="password"]', "Admin@792Fit");
+  await page.fill('input[name="password"]', adminPassword());
   await Promise.all([page.waitForNavigation(), page.click("form button")]);
 
   const status = () => db.from("members").select("status").eq("id", member.id).single().then((r) => r.data?.status);

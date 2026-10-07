@@ -17,7 +17,7 @@ const context = await browser.newContext({ viewport: { width: 390, height: 844 }
 const page = await context.newPage();
 await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
 await page.fill('input[name="email"]', "792fitness@gmail.com");
-await page.fill('input[name="password"]', "Admin@792Fit");
+await page.fill('input[name="password"]', adminPassword());
 await Promise.all([page.waitForNavigation({ timeout: 30000 }), page.click("form button")]);
 
 for (const p of PAGES) {

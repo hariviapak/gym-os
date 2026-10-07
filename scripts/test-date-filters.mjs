@@ -20,7 +20,7 @@ const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SU
 
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "792fitness@gmail.com";
-const PASSWORD = "Admin@792Fit";
+const PASSWORD = envKeys.ADMIN_PASSWORD || (() => { console.error("Set ADMIN_PASSWORD in .env.local (scripts read the gitignored env, never the repo)"); process.exit(1); })();
 
 const results = [];
 const check = (name, ok, detail = "") => {

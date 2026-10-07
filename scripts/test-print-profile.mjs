@@ -6,10 +6,11 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
+import { adminPassword } from "./lib/test-env.mjs";
 
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "792fitness@gmail.com";
-const PASSWORD = "Admin@792Fit";
+const PASSWORD = adminPassword();
 
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")

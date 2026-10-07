@@ -4,10 +4,11 @@
 // - scrollable chip rows on mobile (no page overflow), wrap on desktop
 // Usage: node scripts/test-members-filters.mjs [baseUrl]
 import { chromium } from "playwright";
+import { adminPassword } from "./lib/test-env.mjs";
 
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "792fitness@gmail.com";
-const PASSWORD = "Admin@792Fit";
+const PASSWORD = adminPassword();
 
 const results = [];
 const check = (name, ok, detail = "") => {

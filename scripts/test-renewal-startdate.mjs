@@ -12,10 +12,11 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
+import { adminPassword } from "./lib/test-env.mjs";
 
 const BASE = process.argv[2] || "http://localhost:3000";
 const EMAIL = "792fitness@gmail.com";
-const PASSWORD = "Admin@792Fit";
+const PASSWORD = adminPassword();
 const GYM_ID = "00000000-0000-0000-0000-000000000001";
 
 const envKeys = Object.fromEntries(

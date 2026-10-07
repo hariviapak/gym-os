@@ -4,10 +4,11 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
+import { adminPassword } from "./lib/test-env.mjs";
 
 const BASE = process.argv[2] || "https://gymos.sakhi.app";
 const EMAIL = "792fitness@gmail.com";
-const PASSWORD = "Admin@792Fit";
+const PASSWORD = adminPassword();
 
 // Member-scoped routes need a real member id — fetch one at runtime. On an
 // empty gym (fresh install / post-cleanup) those routes are skipped.
