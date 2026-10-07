@@ -8,7 +8,7 @@ const key = env.match(/NEXT_PUBLIC_SUPABASE_ANON_KEY=(.*)/)[1].trim();
 
 const supabase = createClient(url, key);
 const { data: auth, error: authErr } = await supabase.auth.signInWithPassword({
-  email: "admin@792fitness.com",
+  email: "792fitness@gmail.com",
   password: "Admin@792Fit",
 });
 if (authErr) { console.error("login failed:", authErr.message); process.exit(1); }

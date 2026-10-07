@@ -10,7 +10,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "admin@792fitness.com";
+const EMAIL = "792fitness@gmail.com";
 const PASSWORD = "Admin@792Fit";
 const GYM_ID = "00000000-0000-0000-0000-000000000001";
 

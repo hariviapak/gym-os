@@ -16,7 +16,7 @@ const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SU
 });
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "admin@792fitness.com";
+const EMAIL = "792fitness@gmail.com";
 const PASSWORD = "Admin@792Fit";
 
 const results = [];

@@ -20,7 +20,7 @@ const fail = (msg) => { console.log("❌ " + msg); process.exit(1); };
 const ok = (msg) => console.log("✓ " + msg);
 
 // --- sign in as admin ---
-const { data: auth, error: authErr } = await supa.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
+const { data: auth, error: authErr } = await supa.auth.signInWithPassword({ email: "792fitness@gmail.com", password: "Admin@792Fit" });
 if (authErr) fail("auth: " + authErr.message);
 const { data: me } = await supa.from("users").select("gym_id, id, role").eq("id", auth.user.id).single();
 const gymId = me.gym_id;

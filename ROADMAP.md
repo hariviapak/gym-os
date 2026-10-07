@@ -8,7 +8,7 @@ _Last updated: 2026-09-28 · Status: Phase 1 in progress_
 
 - Single-gym system for **792 Fitness Studio** (gym + swimming pool).
 - Live at **https://gymos.sakhi.app** — branded login: `https://gymos.sakhi.app/login?gym=792`.
-- Staff creds: `admin@792fitness.com` (share with 792 team; do not commit passwords here).
+- Staff creds: `792fitness@gmail.com` (share with 792 team; do not commit passwords here).
 - GST mode: **inclusive** (displayed prices include GST).
 
 ## Locked Design Decisions

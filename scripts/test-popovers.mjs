@@ -16,7 +16,7 @@ const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SU
 const GYM_ID = "00000000-0000-0000-0000-000000000001";
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "admin@792fitness.com";
+const EMAIL = "792fitness@gmail.com";
 const PASSWORD = "Admin@792Fit";
 
 // self-provision a member with history for the profile-menu sections (no
@@ -157,7 +157,7 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
 // cancelling the server action)
 {
   console.log("\n--- More ▾ popover forms (deactivate / reactivate / delete) ---");
-  await db.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
+  await db.auth.signInWithPassword({ email: "792fitness@gmail.com", password: "Admin@792Fit" });
   const { data: orphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Popform");
   for (const o of orphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
   const phone = String(1000000000 + Math.floor(Math.random() * 8999999999));
@@ -170,7 +170,7 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
-  await page.fill('input[name="email"]', "admin@792fitness.com");
+  await page.fill('input[name="email"]', "792fitness@gmail.com");
   await page.fill('input[name="password"]', "Admin@792Fit");
   await Promise.all([page.waitForNavigation(), page.click("form button")]);
 

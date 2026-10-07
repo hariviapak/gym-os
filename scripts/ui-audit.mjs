@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
 
 const BASE = process.argv[2] || "https://gymos.sakhi.app";
-const EMAIL = "admin@792fitness.com";
+const EMAIL = "792fitness@gmail.com";
 const PASSWORD = "Admin@792Fit";
 
 // Member-scoped routes need a real member id — fetch one at runtime. On an

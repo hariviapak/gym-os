@@ -95,7 +95,7 @@ console.log("\n--- manager role ---");
 
   // member profile: staff tools visible (canManage)
   const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
-  await anon.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
+  await anon.auth.signInWithPassword({ email: "792fitness@gmail.com", password: "Admin@792Fit" });
   const { data: rpOrphans } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Roleseed2");
   for (const o of rpOrphans ?? []) await anon.rpc("hard_delete_member", { p_member_id: o.id });
   const { data: member } = await anon
@@ -168,7 +168,7 @@ console.log("\n--- staff role ---");
 
   // member profile: no staff tools (canManage = manager+)
   const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
-  await anon.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
+  await anon.auth.signInWithPassword({ email: "792fitness@gmail.com", password: "Admin@792Fit" });
   const { data: rsOrphans } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Roleseed3");
   for (const o of rsOrphans ?? []) await anon.rpc("hard_delete_member", { p_member_id: o.id });
   const { data: member } = await anon
@@ -203,7 +203,7 @@ console.log("\n--- front-line locker cycle (staff + trainer) ---");
 {
   // test key via the admin anon client (same pattern as the lockers suites)
   const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
-  await anon.auth.signInWithPassword({ email: "admin@792fitness.com", password: "Admin@792Fit" });
+  await anon.auth.signInWithPassword({ email: "792fitness@gmail.com", password: "Admin@792Fit" });
   await anon.from("locker_keys").delete().eq("gym_id", GYM_ID).eq("key_number", "TEST-ROLES-1");
   const { data: roOrphans } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Roleseed");
   for (const o of roOrphans ?? []) await anon.rpc("hard_delete_member", { p_member_id: o.id });
