@@ -153,6 +153,57 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
   await browser.close();
 }
 
+// ---- header account drawer: avatar + hamburger, Sign out tappable ----
+{
+  console.log("\n--- header account drawer (avatar / hamburger / Sign out) ---");
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  await page.fill('input[name="email"]', EMAIL);
+  await page.fill('input[name="password"]', PASSWORD);
+  await Promise.all([page.waitForNavigation(), page.click("form button")]);
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+
+  const drawer = page.locator("aside.z-50");
+  const accountBtn = page.getByRole("button", { name: "Account menu" });
+
+  // avatar opens the drawer
+  await accountBtn.click();
+  await drawer.waitFor({ timeout: 10000 });
+  const drawerTxt = (await drawer.textContent()) ?? "";
+  check("avatar opens the account drawer", true);
+  check("drawer shows user + role", /Gym Admin|Manager|Staff|Owner/.test(drawerTxt), drawerTxt.slice(0, 40));
+
+  // Sign out must not be overlapped by anything at its tap point
+  const signOut = drawer.getByRole("button", { name: /sign out/i });
+  const unobstructed = await signOut.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return el === hit || (hit && el.contains(hit));
+  });
+  check("Sign out fully tappable (nothing overlays it)", unobstructed);
+
+  // Sign out actually logs out
+  await signOut.click();
+  await page.waitForURL(/\/login/, { timeout: 30000 });
+  check("Sign out logs out → /login", true);
+
+  // re-login: hamburger still works, drawer closes on overlay click
+  await page.fill('input[name="email"]', EMAIL);
+  await page.fill('input[name="password"]', PASSWORD);
+  await Promise.all([page.waitForNavigation(), page.click("form button")]);
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await drawer.waitFor({ timeout: 10000 });
+  check("hamburger opens the same drawer", true);
+  await page.mouse.click(330, 400); // right of the 256px-wide drawer → overlay
+  await page.waitForTimeout(300);
+  check("drawer closes on outside click", (await drawer.count()) === 0 || !(await drawer.isVisible()));
+
+  await page.close();
+  await browser.close();
+}
+
 // ---- member status + delete forms inside the More ▾ popover ----
 // (regression: the popover used to unmount these forms mid-click, silently
 // cancelling the server action)
