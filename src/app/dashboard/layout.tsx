@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { UserProvider } from "@/components/layout/user-context";
 
 export default async function DashboardLayout({
   children,
@@ -54,18 +55,20 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-zinc-50">
-      <Sidebar
-        userName={userData.name}
-        userRole={userData.role}
-        gymName={userData.gyms?.name ?? "Gym"}
-        gymLogoUrl={userData.gyms?.logo_url ?? null}
-      />
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
-        <Header userName={userData.name} userRole={userData.role} gymName={userData.gyms?.name ?? "Gym"} gymLogoUrl={userData.gyms?.logo_url ?? null} />
-        <main className="min-w-0 flex-1 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:p-8 lg:pb-8">{children}</main>
+    <UserProvider role={userData.role}>
+      <div className="flex min-h-screen bg-zinc-50">
+        <Sidebar
+          userName={userData.name}
+          userRole={userData.role}
+          gymName={userData.gyms?.name ?? "Gym"}
+          gymLogoUrl={userData.gyms?.logo_url ?? null}
+        />
+        <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
+          <Header userName={userData.name} userRole={userData.role} gymName={userData.gyms?.name ?? "Gym"} gymLogoUrl={userData.gyms?.logo_url ?? null} />
+          <main className="min-w-0 flex-1 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:p-8 lg:pb-8">{children}</main>
+        </div>
+        <BottomNav role={userData.role} duesCount={pendingDuesCount} />
       </div>
-      <BottomNav role={userData.role} duesCount={pendingDuesCount} />
-    </div>
+    </UserProvider>
   );
 }

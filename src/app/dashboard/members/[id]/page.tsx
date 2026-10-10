@@ -221,7 +221,7 @@ export default async function MemberProfilePage({
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
                 <a href={`tel:${member.phone}`} className="hover:text-zinc-900">{member.phone}</a>
                 <WhatsAppButton member={member} templates={contextualTemplates} vars={waVars} redirect_to={`/dashboard/members/${member.id}`} />
-                {member.email && <span>· {member.email}</span>}
+                {member.email && <span className="break-all">· {member.email}</span>}
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${derivedStatus.cls}`}>{derivedStatus.label}</span>

@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { renewMembership } from "@/lib/actions/memberships";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useUser, canBackdateFreely } from "@/components/layout/user-context";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 interface PackageInfo {
@@ -86,6 +87,10 @@ export function RenewalModal({
   const [minStart] = useState(
     () => new Date(Date.now() - 7 * 86400000 + 5.5 * 3600000).toISOString().slice(0, 10)
   );
+  // owner/admin can backdate arbitrarily (recording real history); everyone
+  // else keeps the 7-day guard — server re-checks regardless
+  const { role } = useUser();
+  const freeBackdate = canBackdateFreely(role);
   const isRenewalQueued = !!(
     pkg &&
     pkg.type === "membership" &&
@@ -93,6 +98,23 @@ export function RenewalModal({
     relevantPlan.endDate >= todayStr
   );
   const computedStart = isRenewalQueued ? relevantPlan.endDate : todayStr;
+  // tracked per selected package so the value resets when the package
+  // changes (the input used to remount via key for the same effect)
+  const [startEdit, setStartEdit] = useState<{ pkgId: string; value: string }>({ pkgId: "", value: "" });
+  const startStr = startEdit.pkgId === selectedPackageId && startEdit.value ? startEdit.value : computedStart;
+  // mirror the server's end-date math for the already-expired hint
+  const accessDays = pkg
+    ? pkg.type === "day_pass" || pkg.type === "trial"
+      ? pkg.duration_days - 1
+      : pkg.duration_days
+    : 0;
+  let endFromStart: string | null = null;
+  if (pkg && startStr) {
+    const d = new Date(`${startStr}T00:00:00+05:30`);
+    d.setDate(d.getDate() + accessDays);
+    endFromStart = d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  }
+  const alreadyEnded = !!(endFromStart && endFromStart < todayStr);
 
   let amount = 0;
   let gstAmount = 0;
@@ -207,19 +229,26 @@ export function RenewalModal({
               <div>
                 <label className="block text-xs font-medium text-zinc-600">Start date *</label>
                 <input
-                  key={selectedPackageId}
                   name="start_date"
                   type="date"
-                  defaultValue={computedStart}
-                  min={minStart}
+                  value={startStr}
+                  min={freeBackdate ? undefined : minStart}
+                  onChange={(e) => setStartEdit({ pkgId: selectedPackageId, value: e.target.value })}
                   className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
                 />
                 <p className="mt-1 text-xs text-zinc-400">
                   {isRenewalQueued
                     ? `Prefilled to queue after your current plan ends (${formatDate(computedStart)}).`
                     : "Prefilled to start today."}{" "}
-                  Adjust only if the real start differs — backdating is capped at 7 days.
+                  {freeBackdate
+                    ? "Adjust freely — you can backdate to record a member's real history."
+                    : "Adjust only if the real start differs — backdating is capped at 7 days."}
                 </p>
+                {alreadyEnded && (
+                  <p className="mt-1 text-xs font-medium text-amber-700">
+                    Ends {formatDate(endFromStart!)} — already expired · record-keeping only
+                  </p>
+                )}
               </div>
 
               <div>

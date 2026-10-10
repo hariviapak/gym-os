@@ -172,22 +172,30 @@ const memberships = () =>
   check("queued renewal starts after prior end", newest?.start_date === queuedStart, `${newest?.start_date}`);
 }
 
-// ---- 3. backdate cap: >7 days in the past is rejected ----
+// ---- 3. admin can now backdate >7 days (role-aware cap; capped roles are
+// covered by test-backdate.mjs — this suite signs in as admin) ----
 {
   await page.goto(`${BASE}/dashboard/members/${member.id}`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Renew / Add Service" }).click();
   await page.locator('select[name="package_id"]').waitFor({ timeout: 10000 });
   await page.locator('select[name="package_id"]').selectOption({ value: pkg.id });
-  const startInput = page.locator('input[name="start_date"]');
+  // scope to the modal — the profile freeze form also has a start_date input
+  // once the member holds a running membership plan
+  const startInput = page.locator("div.max-w-lg").locator('input[name="start_date"]');
   await startInput.waitFor({ timeout: 10000 });
-  // lift the client min so the server guard is what we exercise
-  await page.evaluate(() => document.querySelector('input[name="start_date"]')?.removeAttribute("min"));
+  const hasMin = await startInput.evaluate((el) => el.hasAttribute("min"));
+  check("admin sees no client-side backdate cap", !hasMin);
   await startInput.fill(istDate(-8));
-  await page.getByRole("button", { name: "Renew Membership" }).click();
-  await page.getByText(/cannot be more than 7 days/i).first().waitFor({ timeout: 20000 });
-  check("backdate >7 days rejected", true);
+  await page.waitForTimeout(400); // let the controlled input settle its state
+  await page.locator("div.max-w-lg").getByRole("button", { name: "Renew Membership" }).click();
+  await page.waitForTimeout(3000);
+  // memberships() orders by start_date — find the backdated row, don't take
+  // the last element (the queued plans start later than the backdate)
   const { data: list } = await memberships();
-  check("no membership created by the rejected submit", (list ?? []).length === 3, `${list?.length} rows`);
+  const backdated = (list ?? []).find((r) => r.start_date === istDate(-8));
+  check("admin backdate 8 days accepted", !!backdated, `rows: ${(list ?? []).map((r) => r.start_date).join(", ")}`);
+  const wantEnd = istDate(-8 + pkg.duration_days);
+  check("backdated end = start + duration", backdated?.end_date === wantEnd, `${backdated?.end_date}`);
 }
 
 // ---- 4. yesterday-expired edge (-0): row, modal, and Reminders all say expired ----

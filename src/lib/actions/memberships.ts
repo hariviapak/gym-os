@@ -13,7 +13,7 @@ export async function renewMembership(formData: FormData) {
   } = await supabase.auth.getUser();
   const { data: userData } = await supabase
     .from("users")
-    .select("gym_id, id")
+    .select("gym_id, id, role")
     .eq("id", user!.id)
     .single();
 
@@ -75,14 +75,16 @@ export async function renewMembership(formData: FormData) {
   }
 
   // Staff override: an explicit start date beats the computed queue date.
-  // Same backdate rule as freezes — at most 7 days in the past; future starts
-  // are free ("starts Monday").
+  // Managers can go back at most 7 days (same rule as freezes); owner/admin
+  // can backdate arbitrarily to record real history. Future starts are free
+  // ("starts Monday").
   const overrideStr = ((formData.get("start_date") as string) ?? "").trim();
   if (overrideStr) {
+    const canBackdateFreely = userData!.role === "owner" || userData!.role === "admin";
     const backdatedDays = Math.ceil(
       (new Date(todayStr).getTime() - new Date(overrideStr).getTime()) / (1000 * 60 * 60 * 24)
     );
-    if (backdatedDays > 7) {
+    if (!canBackdateFreely && backdatedDays > 7) {
       redirect(`/dashboard/members/${memberId}?error=` + encodeURIComponent("Start date cannot be more than 7 days in the past"));
     }
     startDateStr = overrideStr;

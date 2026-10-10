@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatCurrency, todayIST } from "@/lib/utils";
+import { formatCurrency, todayIST, formatDate } from "@/lib/utils";
+import { useUser, canBackdateFreely } from "@/components/layout/user-context";
 
 interface PackageInfo {
   id: string;
@@ -80,6 +81,28 @@ export function PackagePaymentSection({
   const [groupBillName, setGroupBillName] = useState("");
 
   const pkg = packages.find((p) => p.id === selectedPackageId);
+  // owner/admin can backdate arbitrarily (recording real history); the
+  // server re-checks the role regardless of what this UI allows
+  const { role } = useUser();
+  const freeBackdate = canBackdateFreely(role);
+  const [startEdit, setStartEdit] = useState<{ pkgId: string; value: string }>({ pkgId: "", value: "" });
+  const [defaultStart] = useState(() => todayIST());
+  const [minStart] = useState(() => new Date(Date.now() - 7 * 86400000 + 5.5 * 3600000).toISOString().slice(0, 10));
+  const startStr = startEdit.pkgId === selectedPackageId && startEdit.value ? startEdit.value : defaultStart;
+  // mirror the server's end-date math (day passes count the start day) for
+  // the already-expired hint
+  const accessDays = pkg
+    ? pkg.type === "day_pass" || pkg.type === "trial"
+      ? pkg.duration_days - 1
+      : pkg.duration_days
+    : 0;
+  let endFromStart: string | null = null;
+  if (pkg && startStr) {
+    const d = new Date(`${startStr}T00:00:00+05:30`);
+    d.setDate(d.getDate() + accessDays);
+    endFromStart = d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  }
+  const alreadyEnded = !!(endFromStart && endFromStart < defaultStart);
   const pkgAmount = pkg ? Number(pkg.amount) : 0;
   const effectivePrice = Math.max(0, pkgAmount - discountAmount);
 
@@ -580,10 +603,20 @@ export function PackagePaymentSection({
           <input
             name="start_date"
             type="date"
-            defaultValue={todayIST()}
+            value={startStr}
+            min={freeBackdate ? undefined : minStart}
+            onChange={(e) => setStartEdit({ pkgId: selectedPackageId, value: e.target.value })}
             className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
           />
-          <p className="mt-1 text-xs text-zinc-400">Set actual start date for existing members.</p>
+          <p className="mt-1 text-xs text-zinc-400">
+            Set actual start date for existing members.{" "}
+            {freeBackdate ? "You can backdate to record a member's real history." : "Backdating is capped at 7 days."}
+          </p>
+          {alreadyEnded && (
+            <p className="mt-1 text-xs font-medium text-amber-700">
+              Ends {formatDate(endFromStart!)} — already expired · record-keeping only
+            </p>
+          )}
         </div>
         {!isGroupPkg && (
           <div>

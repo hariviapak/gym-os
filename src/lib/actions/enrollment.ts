@@ -13,7 +13,7 @@ export async function enrollMember(formData: FormData) {
   } = await supabase.auth.getUser();
   const { data: userData } = await supabase
     .from("users")
-    .select("gym_id, id")
+    .select("gym_id, id, role")
     .eq("id", user!.id)
     .single();
 
@@ -24,6 +24,19 @@ export async function enrollMember(formData: FormData) {
   // Same phone is ALLOWED (kids share a parent's number). The wizard shows a
   // soft hint when the phone matches an existing member; identity is the
   // member id, not the phone.
+
+  // Backdate cap — validated BEFORE anything is created so a rejected submit
+  // leaves no orphan member. Managers and front-line roles can go back at
+  // most 7 days (same rule as freezes); owner/admin can backdate arbitrarily
+  // to record a member's real history (end follows start + duration either way).
+  const startDateStr = (formData.get("start_date") as string) || todayIST();
+  const canBackdateFreely = userData!.role === "owner" || userData!.role === "admin";
+  const backdatedDays = Math.ceil(
+    (new Date(todayIST()).getTime() - new Date(startDateStr).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  if (!canBackdateFreely && backdatedDays > 7) {
+    redirect("/dashboard/members/new?error=" + encodeURIComponent("Start date cannot be more than 7 days in the past"));
+  }
 
   // Step 1: Create member
   const { data: member, error: memberError } = await supabase
@@ -64,14 +77,6 @@ export async function enrollMember(formData: FormData) {
     redirect("/dashboard/members/new?error=Package+not+found");
   }
 
-  const startDateStr = (formData.get("start_date") as string) || todayIST();
-  // backdate cap — same rule as freezes: at most 7 days in the past
-  const backdatedDays = Math.ceil(
-    (new Date(todayIST()).getTime() - new Date(startDateStr).getTime()) / (1000 * 60 * 60 * 24)
-  );
-  if (backdatedDays > 7) {
-    redirect("/dashboard/members/new?error=" + encodeURIComponent("Start date cannot be more than 7 days in the past"));
-  }
   const startDate = new Date(startDateStr);
 // Day passes and trials count the start day as day 1 (a "1 Day" pass
   // bought today ends today). Regular memberships keep the same-date-next-
@@ -569,7 +574,7 @@ export async function enrollMember(formData: FormData) {
     action: "member.enrolled",
     entity_type: "members",
     entity_id: member.id,
-    changes: { name: `${member.first_name} ${member.last_name ?? ""}`, package: pkg.name, membership_id: membership.id },
+    changes: { name: `${member.first_name} ${member.last_name ?? ""}`, package: pkg.name, membership_id: membership.id, start_date: startDateStr, end_date: dateToIST(endDate) },
   });
 
   redirect(`/dashboard/members/${member.id}?enrolled=1`);
