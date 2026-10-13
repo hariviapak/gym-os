@@ -126,7 +126,11 @@ export default async function MembersPage({
       .from("membership_freezes")
       .select("member_id")
       .eq("gym_id", gymId)
-      .in("status", ["pending", "active", "approved"]),
+      .in("status", ["pending", "active", "approved"])
+      // date-aware: only freezes overlapping today badge as Frozen —
+      // historical (fully-past) freezes are record-keeping, not current state
+      .lte("start_date", todayIST())
+      .gte("end_date", todayIST()),
     memberQuery,
     supabase
       .from("packages")

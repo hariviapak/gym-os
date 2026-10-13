@@ -114,6 +114,12 @@ export async function renewMembership(formData: FormData) {
     redirect(`/dashboard/members/${memberId}?error=Invalid+discount+amount`);
   }
 
+  // Discounts are manager+ only — the modal renders for canManage, but the
+  // action must not trust the UI
+  if (discountAmount > 0 && !["owner", "admin", "manager"].includes(userData!.role)) {
+    redirect(`/dashboard/members/${memberId}?error=Only+manager+and+above+can+apply+discounts`);
+  }
+
   const effectivePrice = pkgAmount - discountAmount;
   let amount: number;
   let gstAmount: number;

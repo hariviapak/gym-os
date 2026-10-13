@@ -25,3 +25,9 @@ export function useUser() {
 export function canBackdateFreely(role: StaffRole | null): boolean {
   return role === "owner" || role === "admin";
 }
+
+// Discounts are a privileged lever (up to 100% off) — manager and above only.
+// Server actions re-check regardless of what the UI renders.
+export function canDiscount(role: StaffRole | null): boolean {
+  return role === "owner" || role === "admin" || role === "manager";
+}

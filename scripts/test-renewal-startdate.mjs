@@ -131,7 +131,8 @@ const memberships = () =>
   await page.getByRole("button", { name: "Renew / Add Service" }).click();
   await page.locator('select[name="package_id"]').waitFor({ timeout: 10000 });
   await page.locator('select[name="package_id"]').selectOption({ value: pkg.id });
-  const startInput = page.locator('input[name="start_date"]');
+  // scope to the modal — the (possibly historical) freeze form also has a start_date
+  const startInput = page.locator("div.max-w-lg").locator('input[name="start_date"]');
   await startInput.waitFor({ timeout: 10000 });
   const prefill = await startInput.inputValue();
   check("prefilled with today (no active plan)", prefill === TODAY, prefill);
@@ -154,7 +155,8 @@ const memberships = () =>
   await page.getByRole("button", { name: "Renew / Add Service" }).click();
   await page.locator('select[name="package_id"]').waitFor({ timeout: 10000 });
   await page.locator('select[name="package_id"]').selectOption({ value: pkg.id });
-  const startInput = page.locator('input[name="start_date"]');
+  // scope to the modal — the (possibly historical) freeze form also has a start_date
+  const startInput = page.locator("div.max-w-lg").locator('input[name="start_date"]');
   await startInput.waitFor({ timeout: 10000 });
   const prefill = await startInput.inputValue();
   const queuedStart = istDate(3 + pkg.duration_days);
@@ -208,7 +210,8 @@ const memberships = () =>
   await page.getByRole("button", { name: "Renew / Add Service" }).click();
   await page.locator('select[name="package_id"]').waitFor({ timeout: 10000 });
   await page.locator('select[name="package_id"]').selectOption({ value: pkg.id });
-  const startInput = page.locator('input[name="start_date"]');
+  // scope to the modal — the (possibly historical) freeze form also has a start_date
+  const startInput = page.locator("div.max-w-lg").locator('input[name="start_date"]');
   await startInput.waitFor({ timeout: 10000 });
   const prefill = await startInput.inputValue();
   check("yesterday-expired: prefill is today, not queued", prefill === TODAY, prefill);

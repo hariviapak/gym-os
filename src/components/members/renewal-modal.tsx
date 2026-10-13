@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { renewMembership } from "@/lib/actions/memberships";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { useUser, canBackdateFreely } from "@/components/layout/user-context";
+import { useUser, canBackdateFreely, canDiscount } from "@/components/layout/user-context";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 interface PackageInfo {
@@ -61,6 +61,7 @@ export function RenewalModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const [selectedPackageId, setSelectedPackageId] = useState(currentPackageId ?? "");
   const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [pricePaid, setPricePaid] = useState<string>("");
 
   const pkg = packages.find((p) => p.id === selectedPackageId);
   const pkgAmount = pkg ? Number(pkg.amount) : 0;
@@ -257,7 +258,11 @@ export function RenewalModal({
                   name="package_id"
                   required
                   value={selectedPackageId}
-                  onChange={(e) => setSelectedPackageId(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedPackageId(e.target.value);
+                    setDiscountAmount(0);
+                    setPricePaid("");
+                  }}
                   className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
                 >
                   <option value="">Select a package...</option>
@@ -278,6 +283,56 @@ export function RenewalModal({
                   })}
                 </select>
               </div>
+
+              {pkg && pkgAmount > 0 && (
+                <div className="rounded-lg bg-amber-50/60 px-4 py-3 ring-1 ring-amber-100">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600">Actual price paid (optional)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={pricePaid}
+                        onChange={(e) => {
+                          setPricePaid(e.target.value);
+                          const paid = parseFloat(e.target.value);
+                          setDiscountAmount(Number.isFinite(paid) ? Math.min(Math.max(pkgAmount - paid, 0), pkgAmount) : 0);
+                        }}
+                        className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                        placeholder={`list ${formatCurrency(pkgAmount)}`}
+                      />
+                      <p className="mt-1 text-[10px] text-zinc-400">Recording a member at a legacy price? Type what they paid.</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600">Discount</label>
+                      <input
+                        name="discount_amount"
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        max={pkgAmount}
+                        value={discountAmount || ""}
+                        onChange={(e) => {
+                          setDiscountAmount(Math.min(parseFloat(e.target.value) || 0, pkgAmount));
+                          setPricePaid("");
+                        }}
+                        className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-600">Discount Reason</label>
+                      <input
+                        name="discount_reason"
+                        className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                        placeholder="Referral, seasonal, etc."
+                        disabled={discountAmount === 0}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {pkg && (
                 <div className="rounded-lg bg-zinc-50 px-4 py-3">
@@ -309,34 +364,6 @@ export function RenewalModal({
                   <div className="mt-2 flex justify-between border-t border-zinc-200 pt-2 text-sm font-bold">
                     <span className="text-zinc-900">Total Payable</span>
                     <span className="text-zinc-900">{formatCurrency(totalAmount)}</span>
-                  </div>
-                </div>
-              )}
-
-              {pkg && pkgAmount > 0 && (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600">Discount (optional)</label>
-                    <input
-                      name="discount_amount"
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      max={pkgAmount}
-                      value={discountAmount || ""}
-                      onChange={(e) => setDiscountAmount(Math.min(parseFloat(e.target.value) || 0, pkgAmount))}
-                      className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600">Discount Reason</label>
-                    <input
-                      name="discount_reason"
-                      className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                      placeholder="Referral, seasonal, etc."
-                      disabled={discountAmount === 0}
-                    />
                   </div>
                 </div>
               )}

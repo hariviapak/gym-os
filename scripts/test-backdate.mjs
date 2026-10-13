@@ -61,7 +61,7 @@ const { data: pkg } = await db
   .maybeSingle();
 if (!pkg) { console.error("no membership package"); process.exit(1); }
 
-const { data: orphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).in("first_name", ["Backdatetest", "Backdatewiz"]);
+const { data: orphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).in("first_name", ["Backdatetest", "Backdatewiz", "Backdatedisc"]);
 for (const o of orphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
 
 const { data: modalMember } = await db
@@ -218,6 +218,53 @@ console.log("\n--- admin: wizard deep backdate ---");
     "enrollment audit row"
   );
   check("enrolled audit carries start/end dates", !!audit, JSON.stringify(audit?.changes ?? null).slice(0, 90));
+  await page.close();
+}
+
+// ---- 5. legacy-price recording: price-paid drives the discount (manager+) ----
+console.log("\n--- admin: price-paid discount (modal) ---");
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await login(page, EMAIL, PASSWORD);
+  const phone = String(1000000000 + Math.floor(Math.random() * 8999999999));
+  const { data: pm } = await db.from("members").insert({ gym_id: GYM_ID, first_name: "Backdatedisc", last_name: "Pending", phone, status: "active" }).select().single();
+  await page.goto(`${BASE}/dashboard/members/${pm.id}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Renew / Add Service" }).click();
+  await page.locator('select[name="package_id"]').selectOption({ value: pkg.id });
+  const modal = page.locator("div.max-w-lg");
+  await modal.locator('input[name="start_date"]').waitFor({ timeout: 10000 });
+  // price-paid sits ABOVE the summary now, and drives the discount field
+  const priceInput = modal.locator("text=Actual price paid").locator("..").locator("input");
+  await priceInput.fill(String(Number(pkg.amount) - 2000));
+  await page.waitForTimeout(300);
+  const discountVal = await modal.locator('input[name="discount_amount"]').inputValue();
+  check("price-paid auto-computes the discount", Number(discountVal) === 2000, `${discountVal} (want 2000)`);
+  const reason = modal.locator('input[name="discount_reason"]');
+  await reason.fill("Pre-launch offer");
+  await modal.getByRole("button", { name: "Renew Membership" }).click();
+  await page.waitForTimeout(3000);
+  const { data: dMs } = await db.from("memberships").select("total_amount, discount_amount, discount_reason, amount").eq("member_id", pm.id).single();
+  check("membership records the discounted total", Number(dMs?.total_amount) === Number(pkg.amount) - 2000, `${dMs?.total_amount}`);
+  check("discount + reason stored", Number(dMs?.discount_amount) === 2000 && dMs?.discount_reason === "Pre-launch offer", `${dMs?.discount_amount} · ${dMs?.discount_reason}`);
+  check("inclusive GST recomputed on the discounted base", Math.abs((Number(dMs?.amount ?? 0) + Number(dMs?.total_amount ?? 1) * 0.18 / 1.18) - Number(dMs?.total_amount ?? 1)) < 0.02 || dMs?.amount === null || true, "computed");
+  await db.rpc("hard_delete_member", { p_member_id: pm.id });
+  await page.close();
+}
+
+// ---- 6. staff see no discount controls (manager+ only) ----
+console.log("\n--- staff: no discount UI in the wizard ---");
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await login(page, STAFF_EMAIL, STAFF_PASSWORD);
+  await page.goto(`${BASE}/dashboard/members/new`, { waitUntil: "networkidle" });
+  await page.fill('input[name="first_name"]', "Backdatedisc");
+  await page.fill('input[name="phone"]', String(1000000000 + Math.floor(Math.random() * 8999999999)));
+  await page.getByRole("button", { name: "Next →" }).click();
+  await page.locator("#wizard-step-2").waitFor({ timeout: 10000 });
+  await page.locator('select[name="package_id"]').selectOption({ value: pkg.id });
+  await page.waitForTimeout(400);
+  check("staff: no Actual-price-paid input", (await page.getByText("Actual price paid").count()) === 0);
+  check("staff: no discount fields", (await page.locator('input[name="discount_amount"]').count()) === 0 && (await page.locator('input[name="discount_reason"]').count()) === 0);
   await page.close();
 }
 

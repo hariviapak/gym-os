@@ -98,12 +98,14 @@ export default async function MemberProfilePage({
     .sort((a: any, b: any) => a.start_date.localeCompare(b.start_date));
 
   // Freeze state
+  // Date-aware frozen state — a historical (fully-past) freeze is history,
+  // not "frozen now": only freezes overlapping today count, and pending
+  // requests always count so the banner/form stay coherent.
+  const freezeOverlapsToday = (f: any) => f.start_date <= todayStr && f.end_date >= todayStr;
   const activeFreezes = (freezes ?? []).filter(
-    (f: any) => f.status === "pending" || f.status === "active" || f.status === "approved"
+    (f: any) => f.status === "pending" || ((f.status === "active" || f.status === "approved") && freezeOverlapsToday(f))
   );
-  const isFrozen = (freezes ?? []).some(
-    (f: any) => f.status === "active" || f.status === "approved"
-  );
+  const isFrozen = activeFreezes.some((f: any) => f.status === "active" || f.status === "approved");
 
   const derivedStatus = deriveMemberStatus({ ...member, memberships });
   const balanceDue = activeMemberships.reduce(
@@ -303,32 +305,61 @@ export default async function MemberProfilePage({
         {freezes?.filter((f: any) => f.status === "active" || f.status === "approved").map((f: any) => (
           <div key={f.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-blue-50 px-4 py-3 ring-1 ring-blue-200">
             <span className="text-sm font-medium text-blue-900">Frozen: {formatDate(f.start_date)} → {formatDate(f.end_date)}{f.reason ? ` · ${f.reason}` : ""}</span>
-            {canManage && (
+            {/* a fully-past freeze is history — Unfreeze only makes sense for a running freeze */}
+            {canManage && freezeOverlapsToday(f) && (
               <form action={endFreeze.bind(null, f.id, member.id)}>
                 <button type="submit" className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700">Unfreeze</button>
               </form>
             )}
           </div>
         ))}
-        {canManage &&
-          activeMembership &&
-          activeMembership.packages?.type === "membership" &&
-          !isFrozen &&
-          activeFreezes.length === 0 && (
+        {(() => {
+          // freeze target: the running plan, or (owner/admin only) the latest
+          // expired membership-type plan — for recording a member's real
+          // history (the approval math extends that plan's end date)
+          const canRecordHistory = canManage && (userData!.role === "owner" || userData!.role === "admin");
+          const target =
+            activeMembership ??
+            (canRecordHistory &&
+            latestExpired &&
+            latestExpired.status === "active" &&
+            latestExpired.packages?.type === "membership"
+              ? latestExpired
+              : null);
+          if (!canManage || !target || target.packages?.type !== "membership" || isFrozen || activeFreezes.length > 0) {
+            return null;
+          }
+          const recordingHistory = target !== activeMembership;
+          return (
           <details className={`${cardClass} px-4 py-3`}>
-            <summary className="cursor-pointer text-sm font-medium text-zinc-600">Request a freeze</summary>
+            <summary className="cursor-pointer text-sm font-medium text-zinc-600">
+              {recordingHistory ? "Record a past freeze (history)" : "Request a freeze"}
+            </summary>
             <form action={requestFreeze} className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
               <input type="hidden" name="member_id" value={member.id} />
-              <input type="hidden" name="membership_id" value={activeMembership.id} />
-              <input name="start_date" type="date" required min={todayIST()} defaultValue={todayIST()} className="rounded-lg border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-zinc-900 focus:outline-none" />
+              <input type="hidden" name="membership_id" value={target.id} />
+              <input
+                name="start_date"
+                type="date"
+                required
+                min={canRecordHistory ? undefined : todayIST()}
+                defaultValue={todayIST()}
+                className="rounded-lg border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-zinc-900 focus:outline-none"
+              />
               <input name="end_date" type="date" required defaultValue={todayIST()} className="rounded-lg border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-zinc-900 focus:outline-none" />
               <input name="reason" placeholder="Reason…" className="rounded-lg border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-zinc-900 focus:outline-none sm:col-span-1" />
               <SubmitButton className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-zinc-800" label="Freezing…">
                 Freeze
               </SubmitButton>
             </form>
+            {recordingHistory && (
+              <p className="mt-2 text-xs text-zinc-400">
+                Recording history: a fully-past freeze is approved instantly and extends the end date by the frozen days.
+              </p>
+            )}
           </details>
-        )}
+          );
+        })()}
       </div>
 
       {/* ============ 2. CURRENT MEMBERSHIPS ============ */}

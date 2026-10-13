@@ -101,6 +101,12 @@ export async function enrollMember(formData: FormData) {
     redirect("/dashboard/members/new?error=Invalid+discount+amount");
   }
 
+  // Discounts are manager+ only — staff/trainer cannot discount (up to 100%
+  // off would be a walk-in revenue leak). The UI hides the inputs too.
+  if (discountAmount > 0 && !["owner", "admin", "manager"].includes(userData!.role)) {
+    redirect("/dashboard/members/new?error=Only+manager+and+above+can+apply+discounts");
+  }
+
   const effectivePrice = pkgAmount - discountAmount;
   const totalAmount =
     gstMode === "inclusive"

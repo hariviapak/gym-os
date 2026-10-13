@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatCurrency, todayIST, formatDate } from "@/lib/utils";
-import { useUser, canBackdateFreely } from "@/components/layout/user-context";
+import { useUser, canBackdateFreely, canDiscount } from "@/components/layout/user-context";
 
 interface PackageInfo {
   id: string;
@@ -85,6 +85,8 @@ export function PackagePaymentSection({
   // server re-checks the role regardless of what this UI allows
   const { role } = useUser();
   const freeBackdate = canBackdateFreely(role);
+  const mayDiscount = canDiscount(role);
+  const [pricePaid, setPricePaid] = useState<string>("");
   const [startEdit, setStartEdit] = useState<{ pkgId: string; value: string }>({ pkgId: "", value: "" });
   const [defaultStart] = useState(() => todayIST());
   const [minStart] = useState(() => new Date(Date.now() - 7 * 86400000 + 5.5 * 3600000).toISOString().slice(0, 10));
@@ -264,6 +266,7 @@ export function PackagePaymentSection({
             const next = packages.find((p) => p.id === e.target.value);
             setSelectedPackageId(e.target.value);
             setDiscountAmount(0);
+            setPricePaid("");
             // Keep group members when switching between family packages —
             // the split recalculates for the new total automatically.
             if (!next?.is_group_package) {
@@ -569,30 +572,52 @@ export function PackagePaymentSection({
         </div>
       )}
 
-      {pkg && pkgAmount > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="block text-xs font-medium text-zinc-600">Discount Amount (optional)</label>
-            <input
-              name="discount_amount"
-              type="number"
-              step="0.01"
-              min={0}
-              max={pkgAmount}
-              value={discountAmount || ""}
-              onChange={(e) => setDiscountAmount(Math.min(parseFloat(e.target.value) || 0, pkgAmount))}
-              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-              placeholder="0"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-600">Discount Reason</label>
-            <input
-              name="discount_reason"
-              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-              placeholder="Referral, seasonal, etc."
-              disabled={discountAmount === 0}
-            />
+      {pkg && pkgAmount > 0 && mayDiscount && (
+        <div className="rounded-lg bg-amber-50/60 px-4 py-3 ring-1 ring-amber-100">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label className="block text-xs font-medium text-zinc-600">Actual price paid (optional)</label>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                value={pricePaid}
+                onChange={(e) => {
+                  setPricePaid(e.target.value);
+                  const paid = parseFloat(e.target.value);
+                  setDiscountAmount(Number.isFinite(paid) ? Math.min(Math.max(pkgAmount - paid, 0), pkgAmount) : 0);
+                }}
+                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                placeholder={`list ${formatCurrency(pkgAmount)}`}
+              />
+              <p className="mt-1 text-[10px] text-zinc-400">Recording a member at a legacy price? Type what they paid.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-600">Discount Amount (optional)</label>
+              <input
+                name="discount_amount"
+                type="number"
+                step="0.01"
+                min={0}
+                max={pkgAmount}
+                value={discountAmount || ""}
+                onChange={(e) => {
+                  setDiscountAmount(Math.min(parseFloat(e.target.value) || 0, pkgAmount));
+                  setPricePaid("");
+                }}
+                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-600">Discount Reason</label>
+              <input
+                name="discount_reason"
+                className="mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                placeholder="Referral, seasonal, etc."
+                disabled={discountAmount === 0}
+              />
+            </div>
           </div>
         </div>
       )}

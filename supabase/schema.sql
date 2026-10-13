@@ -339,8 +339,10 @@ create table if not exists public.membership_freezes (
   rejected_reason text,
   created_at      timestamptz default now(),
   updated_at      timestamptz default now(),
-  constraint chk_freeze_dates check (end_date >= start_date),
-  constraint chk_backdated_limit check (backdated_days <= 7)
+  constraint chk_freeze_dates check (end_date >= start_date)
+  -- chk_backdated_limit (backdated_days <= 7) dropped in migration 017: the
+  -- requestFreeze action enforces the cap role-aware (owner/admin record
+  -- historical freezes)
 );
 
 create trigger membership_freezes_updated_at before update on public.membership_freezes
