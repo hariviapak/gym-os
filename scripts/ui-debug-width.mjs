@@ -1,5 +1,6 @@
 // Find the deepest element responsible for a page's min-content width
 import { chromium } from "playwright";
+import { e2eAdmin } from "./lib/test-env.mjs";
 
 const BASE = "http://localhost:3000";
 const PAGES = [
@@ -16,8 +17,9 @@ const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
 const page = await context.newPage();
 await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
-await page.fill('input[name="email"]', "792fitness@gmail.com");
-await page.fill('input[name="password"]', adminPassword());
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
+await page.fill('input[name="email"]', EMAIL);
+await page.fill('input[name="password"]', PASSWORD);
 await Promise.all([page.waitForNavigation({ timeout: 30000 }), page.click("form button")]);
 
 for (const p of PAGES) {

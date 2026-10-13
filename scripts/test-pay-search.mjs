@@ -1,22 +1,23 @@
 // Verifies the payments search query shape with a real authenticated session.
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { adminPassword } from "./lib/test-env.mjs";
+import { e2eAdmin, TEST_GYM_ID, sweepAuditLogs } from "./lib/test-env.mjs";
 
 const env = readFileSync(".env.local", "utf8");
 const url = env.match(/NEXT_PUBLIC_SUPABASE_URL=(.*)/)[1].trim();
 const key = env.match(/NEXT_PUBLIC_SUPABASE_ANON_KEY=(.*)/)[1].trim();
 
 const supabase = createClient(url, key);
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
 const { data: auth, error: authErr } = await supabase.auth.signInWithPassword({
-  email: "792fitness@gmail.com",
-  password: adminPassword(),
+  email: EMAIL,
+  password: PASSWORD,
 });
 if (authErr) { console.error("login failed:", authErr.message); process.exit(1); }
 const client = createClient(url, key, {
   global: { headers: { Authorization: `Bearer ${auth.session.access_token}` } },
 });
-const gymId = "00000000-0000-0000-0000-000000000001";
+const gymId = TEST_GYM_ID;
 
 async function searchPayments(q) {
   const { data: matched } = await client

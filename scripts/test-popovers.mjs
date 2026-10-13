@@ -4,7 +4,7 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { adminPassword } from "./lib/test-env.mjs";
+import { e2eAdmin, TEST_GYM_ID, sweepAuditLogs } from "./lib/test-env.mjs";
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")
     .split("\n")
@@ -14,11 +14,10 @@ const envKeys = Object.fromEntries(
 const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
   auth: { persistSession: false },
 });
-const GYM_ID = "00000000-0000-0000-0000-000000000001";
+const GYM_ID = TEST_GYM_ID;
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "792fitness@gmail.com";
-const PASSWORD = envKeys.ADMIN_PASSWORD || (() => { console.error("Set ADMIN_PASSWORD in .env.local (scripts read the gitignored env, never the repo)"); process.exit(1); })();
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
 
 // self-provision a member with history for the profile-menu sections (no
 // demo-data dependency); cleaned up at the end
@@ -172,7 +171,7 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
   await drawer.waitFor({ timeout: 10000 });
   const drawerTxt = (await drawer.textContent()) ?? "";
   check("avatar opens the account drawer", true);
-  check("drawer shows user + role", /Gym Admin|Manager|Staff|Owner/.test(drawerTxt), drawerTxt.slice(0, 40));
+  check("drawer shows user + role", /(QA|Gym) Admin|Manager|Staff|Owner/.test(drawerTxt), drawerTxt.slice(0, 40));
 
   // Sign out must not be overlapped by anything at its tap point
   const signOut = drawer.getByRole("button", { name: /sign out/i });
@@ -209,7 +208,7 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
 // cancelling the server action)
 {
   console.log("\n--- More ▾ popover forms (deactivate / reactivate / delete) ---");
-  await db.auth.signInWithPassword({ email: "792fitness@gmail.com", password: adminPassword() });
+  await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
   const { data: orphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Popform");
   for (const o of orphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
   const phone = String(1000000000 + Math.floor(Math.random() * 8999999999));
@@ -222,8 +221,8 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
-  await page.fill('input[name="email"]', "792fitness@gmail.com");
-  await page.fill('input[name="password"]', adminPassword());
+  await page.fill('input[name="email"]', EMAIL);
+  await page.fill('input[name="password"]', PASSWORD);
   await Promise.all([page.waitForNavigation(), page.click("form button")]);
 
   const status = () => db.from("members").select("status").eq("id", member.id).single().then((r) => r.data?.status);
@@ -259,6 +258,8 @@ for (const vp of [{ w: 390, name: "mobile-390" }, { w: 1440, name: "desktop" }])
   await page.close();
   await browser.close();
 }
+
+await sweepAuditLogs(db); // end-of-run: no audit residue
 
 const failed = results.filter((r) => !r.ok).length;
 await db.rpc("hard_delete_member", { p_member_id: MEMBER_ID });

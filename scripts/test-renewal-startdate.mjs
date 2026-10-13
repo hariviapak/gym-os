@@ -12,12 +12,11 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { adminPassword } from "./lib/test-env.mjs";
+import { e2eAdmin, TEST_GYM_ID, sweepAuditLogs } from "./lib/test-env.mjs";
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "792fitness@gmail.com";
-const PASSWORD = adminPassword();
-const GYM_ID = "00000000-0000-0000-0000-000000000001";
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
+const GYM_ID = TEST_GYM_ID;
 
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")
@@ -235,6 +234,8 @@ await db.rpc("hard_delete_member", { p_member_id: member.id });
 await db.rpc("hard_delete_member", { p_member_id: memberY.id });
 const left = (await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Startdate").in("last_name", ["Test", "Edge"])).data.length;
 check("cleanup: test members removed", left === 0);
+
+await sweepAuditLogs(db); // end-of-run: no audit residue
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? "FAILURES: " + failed : "ALL PASS"}: ${results.filter((r) => r.ok).length}/${results.length}`);

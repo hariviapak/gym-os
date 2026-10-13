@@ -5,12 +5,11 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { adminPassword } from "./lib/test-env.mjs";
+import { e2eAdmin, TEST_GYM_ID, sweepAuditLogs } from "./lib/test-env.mjs";
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "792fitness@gmail.com";
-const PASSWORD = adminPassword();
-const GYM_ID = "00000000-0000-0000-0000-000000000001";
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
+const GYM_ID = TEST_GYM_ID;
 
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")
@@ -97,7 +96,7 @@ await page.goto(`${BASE}/dashboard/reminders`, { waitUntil: "networkidle" });
 const dues = page.locator("#dues");
 const duesTxt = (await dues.innerText()) ?? "";
 check("snoozetest row in Pending Dues", duesTxt.includes("Snoozetest Pending"));
-check("send-count + contacted-by shown (2× · Gym Admin)", /2× · Gym Admin/.test(duesTxt));
+check("send-count + contacted-by shown (2× · Admin)", /2× · (QA Admin|Gym Admin)/.test(duesTxt));
 const gapRow = dues.locator("div.flex.items-center.justify-between").filter({ hasText: "Gaptest Pending" }).first();
 check("gap member (4d-old contact) has button back — 3d gap", /Gaptest Pending/.test(duesTxt) && (await gapRow.locator('button[title="Send WhatsApp"]').count()) === 1);
 
@@ -172,6 +171,8 @@ for (const m of [snoozeMember, gapMember, longExpired, recentExpired]) {
 const ids = [snoozeMember, gapMember, longExpired, recentExpired].map((m) => m.id);
 const leftSnoozes = ((await db.from("reminder_snoozes").select("id").in("member_id", ids)).data ?? []).length;
 check("cleanup: test members + snoozes removed", leftSnoozes === 0);
+
+await sweepAuditLogs(db); // end-of-run: no audit residue
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? "FAILURES: " + failed : "ALL PASS"}: ${results.filter((r) => r.ok).length}/${results.length}`);

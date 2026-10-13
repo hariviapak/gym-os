@@ -6,12 +6,11 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { adminPassword } from "./lib/test-env.mjs";
+import { e2eAdmin, TEST_GYM_ID, sweepAuditLogs } from "./lib/test-env.mjs";
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "792fitness@gmail.com";
-const PASSWORD = adminPassword();
-const GYM_ID = "00000000-0000-0000-0000-000000000001";
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
+const GYM_ID = TEST_GYM_ID;
 
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")
@@ -152,7 +151,7 @@ check("audit freeze.ended with adjustment", audits3.some((a) => a.action === "fr
     user_metadata: { name: "Freeze Manager", role: "manager", gym_id: GYM_ID },
   });
   if (r.error) { console.error("manager create failed:", JSON.stringify(r.error)); process.exit(1); }
-  await db.from("users").update({ role: "manager", gym_id: GYM_ID }).eq("email", MGR_EMAIL);
+  await service.from("users").update({ role: "manager", gym_id: GYM_ID }).eq("email", MGR_EMAIL);
 
   const mpage = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await mpage.goto(`${BASE}/login`, { waitUntil: "networkidle" });
@@ -296,6 +295,8 @@ const left = (await db.from("members").select("id").eq("id", member.id)).data.le
 check("cleanup: test members removed", left === 0 && histMemberId
   ? (await db.from("members").select("id").eq("id", histMemberId)).data.length === 0
   : left === 0);
+
+await sweepAuditLogs(db); // end-of-run: no audit residue
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? "FAILURES: " + failed : "ALL PASS"}: ${results.filter((r) => r.ok).length}/${results.length}`);

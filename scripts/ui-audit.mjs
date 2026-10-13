@@ -4,11 +4,10 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { adminPassword } from "./lib/test-env.mjs";
+import { e2eAdmin, TEST_GYM_ID, sweepAuditLogs } from "./lib/test-env.mjs";
 
 const BASE = process.argv[2] || "https://gymos.sakhi.app";
-const EMAIL = "792fitness@gmail.com";
-const PASSWORD = adminPassword();
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
 
 // Member-scoped routes need a real member id — fetch one at runtime. On an
 // empty gym (fresh install / post-cleanup) those routes are skipped.

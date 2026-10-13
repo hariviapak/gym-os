@@ -5,11 +5,12 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { adminPassword } from "./lib/test-env.mjs";
+import { e2eAdmin, TEST_GYM_ID, sweepAuditLogs } from "./lib/test-env.mjs";
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const GYM_ID = "00000000-0000-0000-0000-000000000001";
-const PASSWORD = "RoleTest@123";
+const GYM_ID = TEST_GYM_ID;
+const PASSWORD = "RoleTest@123"; // throwaway-account password
+const { email: EMAIL, password: QA_ADMIN_PASSWORD } = e2eAdmin(); // admin-db sign-ins
 
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")
@@ -17,6 +18,11 @@ const envKeys = Object.fromEntries(
     .filter((l) => l.includes("="))
     .map((l) => [l.split("=")[0], l.split("=").slice(1).join("=")])
 );
+async function db_delete_key(svc, keyNumber) {
+  await svc.from("locker_key_logs").update({ returned_at: new Date().toISOString() }).eq("gym_id", GYM_ID).eq("key_number", keyNumber).is("returned_at", null);
+  await svc.from("locker_keys").delete().eq("gym_id", GYM_ID).eq("key_number", keyNumber);
+}
+
 const service = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
@@ -42,8 +48,9 @@ for (const u of TEST_USERS) {
     email: u.email,
     password: PASSWORD,
     email_confirm: true,
-    user_metadata: { name: u.name, role: u.role },
+    user_metadata: { name: u.name, role: u.role, gym_id: GYM_ID },
   });
+  if (!r.error) await service.from("users").update({ role: u.role, gym_id: GYM_ID }).eq("email", u.email);
   if (r.error) {
     console.error(`failed to create ${u.role}:`, JSON.stringify(r.error));
     process.exit(1);
@@ -96,7 +103,7 @@ console.log("\n--- manager role ---");
 
   // member profile: staff tools visible (canManage)
   const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
-  await anon.auth.signInWithPassword({ email: "792fitness@gmail.com", password: adminPassword() });
+  await anon.auth.signInWithPassword({ email: EMAIL, password: QA_ADMIN_PASSWORD });
   const { data: rpOrphans } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Roleseed2");
   for (const o of rpOrphans ?? []) await anon.rpc("hard_delete_member", { p_member_id: o.id });
   const { data: member } = await anon
@@ -147,6 +154,12 @@ console.log("\n--- staff role ---");
     check(`staff blocked from ${path}`, blocked);
   }
 
+  // seed one key so the lockers table (not the empty-inventory onboarding
+  // card) renders for the access check — the live gym always has keys, the
+  // test gym starts empty
+  await db_delete_key(service, "TEST-ROLES-0");
+  await service.from("locker_keys").insert({ gym_id: GYM_ID, key_number: "TEST-ROLES-0", locker_number: "900", status: "available" });
+
   // day-to-day pages: allowed
   for (const [path, marker] of [
     ["/dashboard/members", "Members"],
@@ -169,7 +182,7 @@ console.log("\n--- staff role ---");
 
   // member profile: no staff tools (canManage = manager+)
   const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
-  await anon.auth.signInWithPassword({ email: "792fitness@gmail.com", password: adminPassword() });
+  await anon.auth.signInWithPassword({ email: EMAIL, password: QA_ADMIN_PASSWORD });
   const { data: rsOrphans } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Roleseed3");
   for (const o of rsOrphans ?? []) await anon.rpc("hard_delete_member", { p_member_id: o.id });
   const { data: member } = await anon
@@ -204,7 +217,7 @@ console.log("\n--- front-line locker cycle (staff + trainer) ---");
 {
   // test key via the admin anon client (same pattern as the lockers suites)
   const anon = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
-  await anon.auth.signInWithPassword({ email: "792fitness@gmail.com", password: adminPassword() });
+  await anon.auth.signInWithPassword({ email: EMAIL, password: QA_ADMIN_PASSWORD });
   await anon.from("locker_keys").delete().eq("gym_id", GYM_ID).eq("key_number", "TEST-ROLES-1");
   const { data: roOrphans } = await anon.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Roleseed");
   for (const o of roOrphans ?? []) await anon.rpc("hard_delete_member", { p_member_id: o.id });
@@ -260,6 +273,11 @@ for (const u of TEST_USERS) {
 }
 const leftover = (await service.from("users").select("id").like("email", "roletest.%")).data.length;
 check("cleanup: test accounts removed", leftover === 0, `${leftover} left`);
+
+await sweepAuditLogs(service); // end-of-run: no audit residue
+
+// cleanup: the seeded access-check key
+await db_delete_key(service, "TEST-ROLES-0");
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? "FAILURES: " + failed : "ALL PASS"}: ${results.filter((r) => r.ok).length}/${results.length}`);

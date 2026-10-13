@@ -5,8 +5,7 @@
 import { chromium } from "playwright";
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "792fitness@gmail.com";
-const PASSWORD = adminPassword();
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
 
 const VIEWPORTS = [
   { w: 320, name: "320px" },
@@ -27,7 +26,7 @@ const check = (name, ok, detail = "") => {
 // (sorted to the end of the grid = the worst case for bottom-row clipping)
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { adminPassword } from "./lib/test-env.mjs";
+import { e2eAdmin, TEST_GYM_ID, sweepAuditLogs } from "./lib/test-env.mjs";
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")
     .split("\n")
@@ -38,7 +37,7 @@ const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SU
   auth: { persistSession: false },
 });
 const { data: auth } = await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
-const gymId = "00000000-0000-0000-0000-000000000001";
+const gymId = TEST_GYM_ID;
 const { data: luOrphans } = await db.from("members").select("id").eq("gym_id", gymId).eq("first_name", "Lockuiseed");
 for (const o of luOrphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
 const { data: member } = await db
@@ -46,7 +45,16 @@ const { data: member } = await db
   .insert({ gym_id: gymId, first_name: "Lockuiseed", last_name: "Test", phone: String(1000000000 + Math.floor(Math.random() * 8999999999)), status: "active" })
   .select("id")
   .single();
-await db.from("locker_keys").delete().eq("gym_id", gymId).eq("key_number", "TEST-UI-900");
+for (const kn of ["TEST-UI-900", "TEST-UI-901", "TEST-UI-902"]) {
+  await db.from("locker_key_logs").update({ returned_at: new Date().toISOString() }).eq("gym_id", gymId).eq("key_number", kn).is("returned_at", null);
+  await db.from("locker_keys").delete().eq("gym_id", gymId).eq("key_number", kn);
+}
+// two extra available keys so client-side search can prove narrowing (the
+// test gym starts empty, unlike the live gym's 200 keys)
+await db.from("locker_keys").insert([
+  { gym_id: gymId, key_number: "TEST-UI-901", locker_number: "901", status: "available" },
+  { gym_id: gymId, key_number: "TEST-UI-902", locker_number: "902", status: "available" },
+]);
 await db.from("locker_keys").insert({
   gym_id: gymId,
   key_number: "TEST-UI-900",
@@ -160,8 +168,13 @@ await browser.close();
 
 // teardown: return + remove the temporary issued key
 await db.from("locker_key_logs").update({ returned_at: new Date().toISOString() }).eq("gym_id", gymId).eq("key_number", "TEST-UI-900").is("returned_at", null);
-await db.from("locker_keys").delete().eq("gym_id", gymId).eq("key_number", "TEST-UI-900");
+for (const kn of ["TEST-UI-900", "TEST-UI-901", "TEST-UI-902"]) {
+  await db.from("locker_key_logs").update({ returned_at: new Date().toISOString() }).eq("gym_id", gymId).eq("key_number", kn).is("returned_at", null);
+  await db.from("locker_keys").delete().eq("gym_id", gymId).eq("key_number", kn);
+}
 await db.rpc("hard_delete_member", { p_member_id: member.id });
+
+await sweepAuditLogs(db); // end-of-run: no audit residue
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? `FAILED: ${failed}/${results.length}` : `ALL PASS: ${results.length}/${results.length}`}`);

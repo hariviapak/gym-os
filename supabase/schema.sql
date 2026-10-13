@@ -1410,12 +1410,13 @@ security definer
 set search_path = public, pg_catalog
 as $$
 begin
-  -- New auth.users rows get a public.users row assigned to the seed gym
-  -- Role/gym can be changed later by an admin
+  -- New auth.users rows get a public.users row: admin-created users carry
+  -- their gym in metadata (e.g. the QA test gym); public self-signups
+  -- default to the seed gym (account-pending flow assigns a gym)
   insert into public.users (id, gym_id, email, name, role)
   values (
     new.id,
-    '00000000-0000-0000-0000-000000000001',
+    coalesce((new.raw_user_meta_data->>'gym_id')::uuid, '00000000-0000-0000-0000-000000000001'::uuid),
     new.email,
     coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
     coalesce((new.raw_user_meta_data->>'role')::public.staff_role, 'staff')

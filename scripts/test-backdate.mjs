@@ -8,7 +8,7 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { adminPassword, envKeys } from "./lib/test-env.mjs";
+import { e2eAdmin, TEST_GYM_ID, envKeys, sweepAuditLogs , e2eStaff } from "./lib/test-env.mjs";
 const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
   auth: { persistSession: false },
 });
@@ -17,11 +17,9 @@ const service = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.SUPABASE_
 });
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "792fitness@gmail.com";
-const PASSWORD = adminPassword();
-const STAFF_EMAIL = "frontdesk@792fitness.com";
-const STAFF_PASSWORD = "Front@792Fit";
-const GYM_ID = "00000000-0000-0000-0000-000000000001";
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
+const { email: STAFF_EMAIL, password: STAFF_PASSWORD } = e2eStaff();
+const GYM_ID = TEST_GYM_ID;
 const MANAGER_EMAIL = "backdate.manager@792fitness.com";
 const MANAGER_PASSWORD = "Backdate-Manager-1!";
 
@@ -82,7 +80,7 @@ const { data: modalMember } = await db
     user_metadata: { name: "Backdate Manager", role: "manager", gym_id: GYM_ID },
   });
   if (r.error) { console.error("manager create failed:", JSON.stringify(r.error)); process.exit(1); }
-  await db.from("users").update({ role: "manager", gym_id: GYM_ID }).eq("email", MANAGER_EMAIL);
+  await service.from("users").update({ role: "manager", gym_id: GYM_ID }).eq("email", MANAGER_EMAIL);
 }
 
 const membershipsOf = (id) =>
@@ -281,6 +279,8 @@ for (const w of wizLeft ?? []) await db.rpc("hard_delete_member", { p_member_id:
 }
 const leftoverMembers = (await db.from("members").select("id").eq("gym_id", GYM_ID).in("first_name", ["Backdatetest", "Backdatewiz"])).data.length;
 check("cleanup: test members removed", leftoverMembers === 0);
+
+await sweepAuditLogs(db); // end-of-run: no audit residue
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? "FAILURES: " + failed : "ALL PASS"}: ${results.filter((r) => r.ok).length}/${results.length}`);

@@ -7,6 +7,7 @@
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
+import { e2eAdmin, TEST_GYM_ID, sweepAuditLogs } from "./lib/test-env.mjs";
 
 const envKeys = Object.fromEntries(
   readFileSync(".env.local", "utf8")
@@ -19,8 +20,7 @@ const db = createClient(envKeys.NEXT_PUBLIC_SUPABASE_URL, envKeys.NEXT_PUBLIC_SU
 });
 
 const BASE = process.argv[2] || "http://localhost:3000";
-const EMAIL = "792fitness@gmail.com";
-const PASSWORD = envKeys.ADMIN_PASSWORD || (() => { console.error("Set ADMIN_PASSWORD in .env.local (scripts read the gitignored env, never the repo)"); process.exit(1); })();
+const { email: EMAIL, password: PASSWORD } = e2eAdmin();
 
 const results = [];
 const check = (name, ok, detail = "") => {
@@ -41,7 +41,7 @@ async function login(page) {
 console.log("\n--- payments page (390px) ---");
 // self-provision a payment so row-level assertions hold on any gym state
 await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
-const GYM_ID = "00000000-0000-0000-0000-000000000001";
+const GYM_ID = TEST_GYM_ID;
 const { data: dfOrphans } = await db.from("members").select("id").eq("gym_id", GYM_ID).eq("first_name", "Datefilter");
 for (const o of dfOrphans ?? []) await db.rpc("hard_delete_member", { p_member_id: o.id });
 const { data: dfMember } = await db
@@ -126,6 +126,8 @@ console.log("\n--- audit log (390px) ---");
 
 await browser.close();
 await db.rpc("hard_delete_member", { p_member_id: dfMember.id });
+
+await sweepAuditLogs(db); // end-of-run: no audit residue
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\n${failed ? "FAILURES: " + failed : "ALL PASS"}: ${results.filter((r) => r.ok).length}/${results.length}`);
