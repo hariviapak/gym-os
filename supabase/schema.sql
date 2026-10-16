@@ -505,10 +505,14 @@ as $$
       and m.status = 'active'
   ),
   frozen_ids as (
+    -- date-aware: only freezes overlapping TODAY count as frozen-now
+    -- (historical freezes are record-keeping — migration 019)
     select distinct f.member_id
     from membership_freezes f
     where f.gym_id = p_gym_id
       and f.status in ('pending', 'active', 'approved')
+      and f.start_date <= (select today from t)
+      and f.end_date >= (select today from t)
   ),
   cur as (
     select a.member_id, min(a.end_date) as soonest
@@ -568,11 +572,15 @@ as $$
     group by ms.member_id
   ),
   frozen_ids as (
+    -- date-aware: only freezes overlapping TODAY count as frozen-now
+    -- (historical freezes are record-keeping — migration 019)
     select distinct f.member_id
     from membership_freezes f
     join members m on m.id = f.member_id
     where f.gym_id = p_gym_id
       and f.status in ('pending', 'active', 'approved')
+      and f.start_date <= (select today from t)
+      and f.end_date >= (select today from t)
       and m.status = 'active'
   )
   select 'expiring'::text, s.member_id from act_soonest s
